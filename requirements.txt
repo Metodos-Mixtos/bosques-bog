@@ -11,3 +11,5 @@ imageio
 folium
 rasterio
 openpyxl
+python-dotenv
+planet
