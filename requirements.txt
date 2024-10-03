@@ -1,0 +1,13 @@
+git+https://github.com/Metodos-Mixtos/metodos-mixtos.git
+geopandas
+ipykernel
+jupyterlab
+matplotlib
+seaborn
+mapclassify
+contextily
+rasterstats
+imageio
+folium
+rasterio
+openpyxl
