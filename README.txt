@@ -1,4 +1,4 @@
-Este proyecto analiza la deforetación en los bosques de la ciudad de Bogotá
+Este proyecto analiza la deforestación en los bosques de la ciudad de Bogotá
 Creado por Daniel Wiesner y Javier Guerra
 2024
 
