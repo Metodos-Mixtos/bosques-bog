@@ -1,3 +1,7 @@
 .ipynb_checkpoints/
 bosques_env/
 .env
+__pycache__/
+
+#Empezar a usar templates
+#https://github.com/github/gitignore/blob/main/Python.gitignore
