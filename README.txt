@@ -14,3 +14,6 @@ cd 'carpeta del proyecto'
 python -m venv bosques_env
 source bosques_env/bin/activate
 pip install -r requirements.txt
+
+El .env file hay que crearlo con la información que está en: 
+'MMC - General - SDP - Monitoreo de Bosques/monitoreo_bosques/dot_env_content.txt'
