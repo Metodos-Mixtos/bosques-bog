@@ -1,3 +1,4 @@
+earthengine-api
 git+https://github.com/Metodos-Mixtos/metodos-mixtos.git
 geopandas
 ipykernel
@@ -13,3 +14,12 @@ rasterio
 openpyxl
 python-dotenv
 planet
+geemap
+ee
+shapely
+#math
+xarray
+rioxarray
+rasterstats
+datetime
+dotenv
