@@ -5,6 +5,7 @@ ipykernel
 jupyterlab
 matplotlib
 seaborn
+geedim
 mapclassify
 contextily
 rasterstats
