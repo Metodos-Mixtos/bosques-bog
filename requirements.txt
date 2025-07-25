@@ -16,11 +16,8 @@ openpyxl
 python-dotenv
 planet
 geemap
-ee
 shapely
-#math
 xarray
 rioxarray
-rasterstats
-datetime
+sentinelsat
 dotenv

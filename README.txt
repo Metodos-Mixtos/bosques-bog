@@ -8,11 +8,9 @@ Creado por Daniel Wiesner y Javier Guerra
 
 Para instalar el ambiente de programación, lo mejor es: 
 
-conda deactivate #Si usa conda 
-
-cd 'carpeta del proyecto'
-python -m venv bosques_env
-source bosques_env/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 
 El .env file hay que crearlo con la información que está en: 
@@ -39,4 +37,16 @@ Google Earth Engine para dos trimestres de referencia y un área definida.
 Además, crea una grilla de 100 m × 100 m sobre el área de estudio para calcular estadísticas 
 zonales de ambos periodos y estimar el cambio porcentual entre ellos. Finalmente, genera un mapa
 de coberturas del suelo para los dos trimestres seleccionados.
+
+----------
+
+Para correr el proyecto: 
+
+1. Descargar las alertas de deforestación de gfw:
+python gfw_alerts/main.py
+
+2. Descargar los cambios en cobertura de la tierra de dynamic_world: 
+dynamic_world/main.py
+
+3. Descargar las imágenes para las zonas de alertas de gwf de Sentinel
 
