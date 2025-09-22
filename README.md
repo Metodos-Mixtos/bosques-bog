@@ -1,25 +1,6 @@
-# Monitoreo de Bosques Bogotá
+# Sistema Monitoreo de Bosques y Páramos de Bogotá (SIMBYP)
 
 Este repositorio contiene herramientas y scripts para el análisis y monitoreo de los bosques en Bogotá, integrando diversas fuentes de datos satelitales y funcionalidades para el seguimiento de la cobertura terrestre y la deforestación.
-
-## Novedades Recientes
-
-Últimamente se han fusionado dos ramas principales que aportan nuevas funcionalidades:
-
-- **Urban Sprawl** ([Pull Request](https://github.com/Metodos-Mixtos/bosques-bog/pull/2)):  
-  Se han añadido herramientas para analizar la expansión urbana y su impacto sobre los bosques, utilizando datos de Dynamic World y comparativas temporales.
-
-- **Reportes de Deforestación** ([Pull Request](https://github.com/Metodos-Mixtos/bosques-bog/pull/1)):  
-  Ahora el repositorio permite generar y visualizar reportes sobre la deforestación, facilitando el seguimiento y la toma de decisiones basadas en datos satelitales y alertas.
-  Proyecto gfw_alerts
-
-  Este proyecto se conecta a la API de Global Forest Watch (GFW) para descargar alertas integradas 
-  de deforestación que combinan tres subsistemas: GLAD-L, GLAD-S2 y RADD, según una fecha y un polígono 
-  definidos.
-
-  El script guarda los resultados en un archivo CSV, genera un archivo JSON con el resumen estadístico 
-  por tipo de alerta, y crea un mapa mostrandos las alertas en el área de referencia.
-
 
 ## Estructura del Repositorio
 
@@ -30,8 +11,19 @@ Google Earth Engine para dos trimestres de referencia y un área definida.
 Además, crea una grilla de 100 m × 100 m sobre el área de estudio para calcular estadísticas 
 zonales de ambos periodos y estimar el cambio porcentual entre ellos. Finalmente, genera un mapa de coberturas del suelo para los dos trimestres seleccionados.
 
+- `gfw_alert/`:   Se conecta a la API de Global Forest Watch (GFW) para descargar alertas integradas 
+  de deforestación que combinan tres subsistemas: GLAD-L, GLAD-S2 y RADD, según una fecha y un polígono 
+  definidos.
+
+  El script guarda los resultados en un archivo CSV, genera un archivo JSON con el resumen estadístico 
+  por tipo de alerta, y crea un mapa mostrandos las alertas en el área de referencia.
+
+- `notebooks_de_referencia`: Códigos sueltos o viejos que pueden ser útiles para algunas funciones específicas, como descargar imágenes de Planet, cuando estén disponibles. 
+
 - `sentinel-images-download/`: Código para la descarga y procesamiento de imágenes satelitales Sentinel.
 - Otros submódulos y utilidades relacionadas con el monitoreo de bosques.
+
+- `urban_sprawl/`: Herramientas para analizar la expansión urbana y su impacto sobre los bosques, utilizando datos de Dynamic World y comparativas temporales.
 
 ## Uso
 
@@ -39,7 +31,7 @@ Consulta los README específicos de cada subcarpeta para instrucciones detallada
 
 ## Colaboradores
 
-Este proyecto es mantenido por el equipo de Métodos Mixtos y colaboradores.  
+Este proyecto es mantenido por el equipo de Métodos Mixtos y colaboradores (Daniel Wiesner, Javier Guerra y Laura Tamayo).  
 Para sugerencias o reportar problemas, crea un Issue o Pull Request.
 
 ## Set-up
