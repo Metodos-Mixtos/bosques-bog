@@ -34,20 +34,20 @@ Consulta los README específicos de cada subcarpeta para instrucciones detallada
 Este proyecto es mantenido por el equipo de Métodos Mixtos y colaboradores (Daniel Wiesner, Javier Guerra y Laura Tamayo).  
 Para sugerencias o reportar problemas, crea un Issue o Pull Request.
 
-## Set-up
+## Data sources
 
-#Las bases de datos están en Teams en en el canal GIS en
-#data_folder = 'GIS/geoinfo/Colombia/Bogotá/bosques_bogota'
-#'https://metodosmixtos.sharepoint.com/:f:/s/MMC-General/EogKVdk7FYZBsTKCr79IK98BgnozkrY1czyiyR6MDn5i5g?e=78hsPW'
+- Las bases de datos están en Teams en en el canal GIS en
+- data_folder = 'GIS/geoinfo/Colombia/Bogotá/bosques_bogota'
+- 'https://metodosmixtos.sharepoint.com/:f:/s/MMC-General/EogKVdk7FYZBsTKCr79IK98BgnozkrY1czyiyR6MDn5i5g?e=78hsPW'
 
-Para instalar el ambiente de programación, lo mejor es: 
+### Set-up
 
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip setuptools wheel
-pip install -r requirements.txt
+- python3 -m venv .venv
+- source .venv/bin/activate
+- pip install --upgrade pip setuptools wheel
+- pip install -r requirements.txt
 
-El .env file hay que crearlo con la información que está en: 
+- El .env file hay que crearlo con la información que está en: 
 'MMC - General - SDP - Monitoreo de Bosques/monitoreo_bosques/dot_env_content.txt'
 
 ## Licencia
