@@ -5,5 +5,12 @@ temp_data/
 __pycache__/
 .venv/
 
+deforestation_reports/data/
+deforestation_reports/output/
+*.tif
+*.tif.aux.xml
+*.kml
+*.pdf
+*.docx
 #Empezar a usar templates
 #https://github.com/github/gitignore/blob/main/Python.gitignore
