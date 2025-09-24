@@ -13,17 +13,24 @@ zonales de ambos periodos y estimar el cambio porcentual entre ellos. Finalmente
 
 - `gfw_alert/`:   Se conecta a la API de Global Forest Watch (GFW) para descargar alertas integradas 
   de deforestación que combinan tres subsistemas: GLAD-L, GLAD-S2 y RADD, según una fecha y un polígono 
-  definidos.
+  definidos. 
 
   El script guarda los resultados en un archivo CSV, genera un archivo JSON con el resumen estadístico 
   por tipo de alerta, y crea un mapa mostrandos las alertas en el área de referencia.
 
-- `notebooks_de_referencia`: Códigos sueltos o viejos que pueden ser útiles para algunas funciones específicas, como descargar imágenes de Planet, cuando estén disponibles. 
+  Frecuencia: Puede correrse mensual. Es la información más frecuente. Trimestral puede ser ideal.
 
-- `sentinel-images-download/`: Código para la descarga y procesamiento de imágenes satelitales Sentinel.
-- Otros submódulos y utilidades relacionadas con el monitoreo de bosques.
+- `notebooks_de_referencia`: Códigos sueltos o viejos que pueden ser útiles para algunas funciones específicas, como descargar imágenes de Planet, cuando estén disponibles.
+
+Frecuencia: no se corre regularmente. Es código útil para temas específicos. 
+
+- `sentinel-images-download/`: Código para la descarga y procesamiento de imágenes satelitales Sentinel. Otros submódulos y utilidades relacionadas con el monitoreo de bosques.
+
+Frecuencia: este no se corre en sí mismo. Se llama desde otros módulos y corre en la medida en se corran otros módulos. 
 
 - `urban_sprawl/`: Herramientas para analizar la expansión urbana y su impacto sobre los bosques, utilizando datos de Dynamic World y comparativas temporales.
+
+Frecuencia: se corre semestralmente, en julio y en enero idealmente. 
 
 ## Uso
 
