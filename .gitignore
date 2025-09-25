@@ -6,7 +6,6 @@ __pycache__/
 .venv/
 
 deforestation_reports/data/*
-!deforestation_reports/data/.gitkeep
 deforestation_reports/output/*
 !deforestation_reports/output/.gitkeep
 *.tif
