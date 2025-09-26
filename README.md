@@ -47,7 +47,8 @@ Para sugerencias o reportar problemas, crea un Issue o Pull Request.
 ## Data sources
 
 - Las bases de datos están en Teams en en el canal GIS en
-- data_folder = 'https://metodosmixtos-my.sharepoint.com/:f:/p/dwiesner/Ep_8HCIKx6BAp9UD1S--CN8BSQmpb5e6HBEbqlue3HcwbA?e=mO7uce'
+- data_folder = https://metodosmixtos-my.sharepoint.com/:f:/p/dwiesner/Ep_8HCIKx6BAp9UD1S--CN8BSQmpb5e6HBEbqlue3HcwbA?e=mO7uce
+- El data_folder está hosted en: /Users/Daniel/Library/CloudStorage/OneDrive-VestigiumMétodosMixtosAplicadosSAS/proyectos/SIMBYP_DATA
 
 ### Set-up
 
