@@ -2,13 +2,24 @@
 from pathlib import Path
 import os
 
+from dotenv import load_dotenv
+
+# load .env 
+load_dotenv()
+
 from deforestation_PSAH_functions import (
     select_parcel, context_map, plot_deforestation_map,
     def_anual, build_html_report, pick_column, ensure_dir
 )
 
 #  CENTRALIZED FOLDERS (PATHS)
-BASE_DIR    = Path(r"C:\Users\laura\OneDrive - Vestigium Métodos Mixtos Aplicados SAS\Archivos de Daniel Wiesner - simbyp_data\deforestation_reports")
+
+base_dir_str = os.getenv("BASE_DIR")
+if not base_dir_str:
+    raise RuntimeError("BASE_DIR no está en .env")
+
+BASE_DIR = Path(base_dir_str)
+
 SHP_PATH    = BASE_DIR / r"Shapes PSA\areas_priorizadas_psah.shp"
 AOI_PATH    = BASE_DIR / r"AOI-Bogota-Colombia\bog-area-estudio.shp"  # optional
 RASTER_PATH = BASE_DIR / r"Hansen Colombia 2024\hansen_treecover_SDP_2024.tif"
