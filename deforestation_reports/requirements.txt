@@ -14,4 +14,6 @@ python-docx
 docx2pdf
 pywin32; platform_system == "Windows"
 matplotlib-scalebar
-git+https://github.com/Metodos-Mixtos/metodos_mixtos.git@<tag>
+folium
+python-dotenv
+git+https://github.com/Metodos-Mixtos/metodos_mixtos.git@main
