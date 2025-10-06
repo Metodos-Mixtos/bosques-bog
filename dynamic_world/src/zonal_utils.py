@@ -6,6 +6,7 @@ import numpy as np
 from rasterio.mask import mask
 from shapely.geometry import mapping
 
+
 def get_class_percentages_per_grid(grid_gdf, raster_path, class_values=range(9)):
     """Calcula el porcentaje real de cada clase en cada celda, basado en conteo real de píxeles."""
     zs = zonal_stats(
