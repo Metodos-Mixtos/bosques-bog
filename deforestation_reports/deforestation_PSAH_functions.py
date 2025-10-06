@@ -1,5 +1,5 @@
 """
-Utility functions to generate deforestation HTML reports.
+Funciones de utilidad para generar reportes de deforestación HTML. 
 """
 
 import os
@@ -349,6 +349,13 @@ def plot_deforestation_map(
     raster_path, gdf, names_column, name_of_area,
     year_start, year_end, output_folder="."
 ):
+    """
+    Mapa PNG estático de bosque (verde) y pérdida (rojo) estrictamente dentro del polígono del predio.
+
+    Funciona con:
+      • Stack Hansen de 3 bandas: [treecover2000, loss, lossyear] (uint8)
+      • 1 banda lossyear (uint8)
+    """
     ensure_dir(output_folder)
     safe_name = str(name_of_area).replace(" ", "_").replace("/", "_")
     output_path = os.path.join(
@@ -356,67 +363,94 @@ def plot_deforestation_map(
     )
 
     with rasterio.open(raster_path) as src:
-        raster_crs = src.crs
-        gdf_r = gdf.to_crs(raster_crs) if (gdf.crs and gdf.crs != raster_crs) else gdf
-        geoms = [mapping(geom) for geom in gdf_r.geometry]
+        # CRS 
+        if gdf.crs is None:
+            raise ValueError("El GeoDataFrame no tiene CRS.")
+        parcel_r = gdf.to_crs(src.crs) if gdf.crs != src.crs else gdf.copy()
+        geoms = [mapping(geom) for geom in parcel_r.geometry]
 
-        # Recorte; fuera del polígono se rellena con 0
-        clipped, transform = rio_mask.mask(src, geoms, crop=True, filled=True)
+        # Recorta usando la máscara real (el exterior permanece enmascarado)
+        clipped, transform = rio_mask.mask(src, geoms, crop=True, filled=False)
         band_count = src.count
 
-        start_code = int(year_start - 2000)
+        # Máscara "inside": True donde los datos están dentro del polígono
+        inside = ~np.ma.getmaskarray(clipped[0])
+        rows, cols = inside.shape
+
+        # Códigos Hansen para el periodo solicitado
+        start_code = max(1, int(year_start - 2000))  
         end_code   = int(year_end   - 2000)
 
-        # Construye máscaras booleanas (True donde el píxel debe dibujarse)
-        if band_count == 1:
-            lossyear = clipped[0]
-            loss_bool = (lossyear >= start_code) & (lossyear <= end_code)
-            preserved_bool = (lossyear == 0)  # never lost up to end_code
-        elif band_count >= 3:
-            tc2000 = clipped[0]; loss = clipped[1]; lossyear = clipped[2]
-            valid_forest = tc2000 > 0
-            loss_bool = valid_forest & (loss == 1) & (lossyear >= start_code) & (lossyear <= end_code)
-            preserved_bool = valid_forest & ((loss == 0) | (lossyear > end_code))
-        else:
-            raise ValueError("El ráster debe tener 1 banda (lossyear) o 3 bandas (tc2000, loss, lossyear).")
+        # Condiciones para mostrar los pixeles dentro del polígono
+        if band_count >= 3:
+            tc2000  = clipped[0].filled(0).astype(np.uint8)
+            loss    = clipped[1].filled(0).astype(np.uint8)
+            lossyer = clipped[2].filled(0).astype(np.uint8)
 
-        # Extent for imshow (note cols, rows order)
-        rows, cols = loss_bool.shape
-        left, bottom, right, top = rasterio.transform.array_bounds(cols, rows, transform)
+            valid_forest = (tc2000 > 0)
+
+            loss_bool = (
+                inside & valid_forest &
+                (loss == 1) &
+                (lossyer >= start_code) & (lossyer <= end_code)
+            )
+
+            preserved_bool = (
+                inside & valid_forest &
+                ((loss == 0) | (lossyer > end_code))
+            )
+
+        elif band_count == 1:
+            lossyer = clipped[0].filled(0).astype(np.uint8)
+
+            loss_bool = (
+                inside &
+                (lossyer >= start_code) & (lossyer <= end_code)
+            )
+            # "Preserved" :nunca perdida mediante end_code
+            preserved_bool = inside & (lossyer == 0)
+
+        else:
+            raise ValueError("El ráster debe tener 3 bandas (tc2000, loss, lossyear).")
+
+        # Extent para imshow
+        left, bottom, right, top = rasterio.transform.array_bounds(rows, cols, transform)
         extent = [left, right, bottom, top]
 
-    # Construye una imagen RGBA transparente (sin colormap, sin gris)
-    rgba = np.zeros((rows, cols, 4), dtype=float)  
+    # Construir RGBA without background 
+    rgba = np.zeros((rows, cols, 4), dtype=float)
+    green = (0.35, 0.60, 0.45)   # bosque
+    red   = (0.85, 0.16, 0.16)   # loss
 
-    # Colores (0–1) — puedes ajustar si lo deseas
-    green = (0.35, 0.60, 0.45)   # bosque preservado
-    red   = (0.85, 0.16, 0.16)   # pérdida de cobertura arbórea
-
-    # Dibuja primero el bosque preservado (debajo), luego la pérdida encima
     if preserved_bool.any():
         r, g, b = green
         rgba[preserved_bool, 0] = r
         rgba[preserved_bool, 1] = g
         rgba[preserved_bool, 2] = b
-        rgba[preserved_bool, 3] = 0.45   # alpha
+        rgba[preserved_bool, 3] = 0.45
 
     if loss_bool.any():
         r, g, b = red
         rgba[loss_bool, 0] = r
         rgba[loss_bool, 1] = g
         rgba[loss_bool, 2] = b
-        rgba[loss_bool, 3] = 0.75   # alpha
+        rgba[loss_bool, 3] = 0.75
 
     # Plot 
     fig, ax = plt.subplots(figsize=(9, 8), constrained_layout=True)
     fig.patch.set_facecolor("white")
     ax.set_facecolor("white")
 
-    ax.imshow(rgba, extent=extent, interpolation="nearest", zorder=1)
+    if preserved_bool.any() or loss_bool.any():
+        ax.imshow(rgba, extent=extent, interpolation="nearest", zorder=1)
+    else:
+        ax.text(0.5, 0.5, "Sin bosque en 2000 y/o sin pérdida en el periodo",
+                transform=ax.transAxes, ha="center", va="center",
+                fontsize=11, color="dimgray")
 
-    # Dibuja el contorno de la parcela y etiqueta opcional
-    gdf_r.boundary.plot(ax=ax, color="black", linewidth=1.1, zorder=2)
-    for _, row in gdf_r.iterrows():
+    # Polígono del predio
+    parcel_r.boundary.plot(ax=ax, color="black", linewidth=1.1, zorder=2)
+    for _, row in parcel_r.iterrows():
         c = row.geometry.centroid
         lab = str(row.get(names_column, "")).strip()
         if lab:
@@ -430,15 +464,15 @@ def plot_deforestation_map(
     ax.set_title(f"Pérdida de bosque {year_start}-{year_end} en {name_of_area}")
     ax.set_xticks([]); ax.set_yticks([])
 
-    # Ajusta el marco para que la parcela llene mejor la vista
-    xmin, ymin, xmax, ymax = gdf_r.total_bounds
+    # Vista alrededor del predio
+    xmin, ymin, xmax, ymax = parcel_r.total_bounds
     dx = (xmax - xmin) * 0.10
     dy = (ymax - ymin) * 0.10
     ax.set_xlim(xmin - dx, xmax + dx)
     ax.set_ylim(ymin - dy, ymax + dy)
     ax.set_aspect("equal", adjustable="datalim")
 
-    # Flecha de norte y barra de escala (asegúrate de mantener los helpers mejorados)
+    # Flecha del norte, escala y demás
     add_north_arrow(ax, pos=(0.06, 0.84), length=0.08, color="black")
     gdf_wgs = gdf.to_crs(4326) if (gdf.crs and gdf.crs.to_epsg() != 4326) else gdf
     add_scalebar_lonlat(ax, gdf_wgs=gdf_wgs, loc="lower center", segments=4)
@@ -447,7 +481,6 @@ def plot_deforestation_map(
     plt.savefig(output_path, bbox_inches="tight", dpi=300)
     plt.close()
     return output_path
-
 
 def def_anual(gdf, raster_path, year_min=2000, year_max=2024) -> pd.DataFrame:
     """
@@ -579,7 +612,7 @@ def build_html_report(
             <thead><tr><th>Año</th><th>Pérdida (ha)</th></tr></thead>
             <tbody>{rows_html}</tbody>
           </table>
-          <p class="note">Área de píxel ~30 m × 30 m (Hansen GFC).</p>
+          <p class="note">Área de píxel ~ 30 m × 30 m (Hansen GFC).</p>
         </div>
         """
     else:
