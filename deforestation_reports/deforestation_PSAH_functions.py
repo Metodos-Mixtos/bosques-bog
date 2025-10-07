@@ -11,11 +11,14 @@ import folium
 import rasterio
 from rasterio import mask as rio_mask
 import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+from shapely.geometry import box
 import matplotlib.patches as mpatches
 from shapely.geometry import mapping
 import json
 import locale
 import warnings
+import requests
 from branca.element import Element, MacroElement, Template 
 
 
@@ -183,9 +186,6 @@ def select_parcel(shp_path, objectid_val=None, lotcodigo_val=None) -> gpd.GeoDat
         sel = sel.dissolve().reset_index(drop=True)
     return sel
 
-from branca.element import Element, MacroElement, Template
-import json
-
 def context_map(parcel_gdf, aoi_path, out_html, legend_name: str | None = None,
                 scale_position: str = "bottomleft"):
     """
@@ -256,7 +256,7 @@ def context_map(parcel_gdf, aoi_path, out_html, legend_name: str | None = None,
     </div>
     """))
 
-    # Escala - REVISAR
+    # Escala - REVISAR porque aún no aparece
     pos = scale_position if scale_position in {"bottomleft","bottomright"} else "bottomleft"
 
     scale_macro = MacroElement()
@@ -525,24 +525,221 @@ def def_anual(gdf, raster_path, year_min=2000, year_max=2024) -> pd.DataFrame:
     df = df.sort_values("year").reset_index(drop=True)
     return df
 
+# Sentinel-2 helpers (Toma de Google Earth Engine y la muestra como PNG en el HTML)
+
+def _ee_init_once():
+    """Inicialización GEE (no aparece ningún mensaje si ya está autenticado)."""
+    import ee
+    try:
+        ee.Initialize()
+    except Exception:
+        ee.Authenticate()  # opens browser 1st time
+        ee.Initialize()
+    return ee
+
+def _parcel_to_ee_geometry(parcel_gdf):
+    """Devolver ee.Geometry del predio (uno solo) en EPSG:4326."""
+    gdf_wgs = parcel_gdf.to_crs(4326)
+    gj = json.loads(gdf_wgs.to_json())
+    # dissolve in case multipart
+    coords = gj["features"][0]["geometry"]["coordinates"]
+    geom_type = gj["features"][0]["geometry"]["type"]
+    import ee
+    if geom_type == "Polygon":
+        return ee.Geometry.Polygon(coords[0])
+    elif geom_type == "MultiPolygon":
+        return ee.Geometry.MultiPolygon(coords)
+    else:
+        # fallback: use bounds
+        poly = gdf_wgs.geometry.unary_union.envelope
+        return ee.Geometry.Polygon(list(poly.exterior.coords))
+
+def _s2_cloudmask(image):
+    """
+    Máscara de nubes simple. Mejora la composición eliminando los píxeles marcados como nubes en QA60 antes de tomar la media anual.
+    """
+    qa = image.select('QA60')
+    cloud_bit = 1 << 10
+    cirrus_bit = 1 << 11
+    mask = qa.bitwiseAnd(cloud_bit).eq(0).And(qa.bitwiseAnd(cirrus_bit).eq(0))
+    return image.updateMask(mask)
+
+def _s2_year_mean_rgb(ee_module, geom, year, max_cloud=60):
+    """Devuelve una imagen RGB compuesta promedio (B4,B3,B2) de ee.Image para un año calendario."""
+    ee = ee_module
+    start = ee.Date.fromYMD(year, 1, 1)
+    end   = ee.Date.fromYMD(year, 12, 31).advance(1, 'day')
+
+    col = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+            .filterBounds(geom)
+            .filterDate(start, end)
+            .filter(ee.Filter.lte('CLOUDY_PIXEL_PERCENTAGE', max_cloud))
+            .map(_s2_cloudmask)
+            .select(['B4','B3','B2']))  # RGB - 10m 
+
+    # Promedio de todas las imágenes del año en aoi libre de nubes
+
+    img = col.mean().clip(geom)
+    vis = {'bands': ['B4','B3','B2'], 'min': 0, 'max': 3000}
+    return img.visualize(**vis)
+
+def _square_region_from_parcel(parcel_gdf, pad_frac=0.12):
+    """
+    Devuelve un ee.Geometry.Rectangle (cuadrado) en EPSG:4326 que circunscribe el predio con un margen (pad_frac).
+    El cuadrado garantiza un encuadre idéntico para ambos años y cualquier predio.
+    """
+    ee = _ee_init_once()
+    gdf_wgs = parcel_gdf.to_crs(4326)
+    xmin, ymin, xmax, ymax = gdf_wgs.total_bounds
+    cx = (xmin + xmax) / 2.0
+    cy = (ymin + ymax) / 2.0
+    w = xmax - xmin
+    h = ymax - ymin
+    side = max(w, h) * (1.0 + pad_frac)  # añade márgenes
+    half = side / 2.0
+    rect = ee.Geometry.Rectangle(
+        [cx - half, cy - half, cx + half, cy + half],
+        proj=None, geodesic=False
+    )
+    return rect
+
+
+def _annotate_s2_png(png_in: str,
+                     out_png: str,
+                     rect_bounds: tuple[float,float,float,float],
+                     parcel_gdf: gpd.GeoDataFrame):
+    """
+    Redibuja el PNG de Sentinel-2 agregando:
+      - contorno del predio (línea blanca delgada),
+      - flecha de norte,
+      - barra de escala (aprox. lon/lat).
+    rect_bounds: (xmin, ymin, xmax, ymax) en EPSG:4326 del rectángulo cuadrado.
+    """
+    xmin, ymin, xmax, ymax = rect_bounds
+    extent = [xmin, xmax, ymin, ymax]
+
+    # Lee la imagen
+    img = mpimg.imread(png_in)
+
+    # Figura cuadrada
+    fig, ax = plt.subplots(figsize=(6.0, 6.0), constrained_layout=True)
+    ax.imshow(img, extent=extent, zorder=1)
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+    ax.set_aspect('equal')
+    ax.set_xticks([]); ax.set_yticks([])
+    ax.set_facecolor("white")
+
+    # Contorno del polígono del predio (blanco fino)
+    parcel_wgs = parcel_gdf.to_crs(4326)
+    parcel_wgs.boundary.plot(ax=ax, color="white", linewidth=1.2, zorder=3)
+
+    # Flecha del norte
+    add_north_arrow(ax, pos=(0.08, 0.86), length=0.08, color="white")
+
+    # Barra de escala: usamos el rectángulo como "gdf" para su bounding box
+    rect_poly = gpd.GeoDataFrame(geometry=[box(xmin, ymin, xmax, ymax)], crs=4326)
+    add_scalebar_lonlat(ax, gdf_wgs=rect_poly, loc="lower center", segments=4)
+
+    plt.savefig(out_png, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+def _rect_bounds_from_region_info(region_info: dict) -> tuple[float,float,float,float]:
+    """
+    Extrae (xmin, ymin, xmax, ymax) de la geometría tipo Polygon (rectángulo) devuelta por EE (getInfo()).
+    """
+    # region_info es un diccionario geojson con claves: tipo, coordenadas
+    coords = region_info.get("coordinates", [])
+    if not coords:
+        raise ValueError("No hay coordenadas en region_info.")
+    ring = coords[0]  # lista de [lon,lat]
+    xs = [p[0] for p in ring]
+    ys = [p[1] for p in ring]
+    return (min(xs), min(ys), max(xs), max(ys))
+
+def download_sentinel_year_pngs(parcel_gdf, year_start, year_end, out_dir, dim=1024):
+    """
+    Descarga 2 PNGs (media anual B4-B3-B2) con el MISMO encuadre cuadrado y
+    luego los re-renderiza agregando:
+      - contorno de predio (blanco),
+      - flecha del norte,
+      - barra de escala.
+    Retorna rutas a PNGs finales (con overlays).
+    """
+    ensure_dir(out_dir)
+    ee = _ee_init_once()
+
+    # Región cuadrada común a ambos años
+    region_rect = _square_region_from_parcel(parcel_gdf, pad_frac=0.12)
+    region_info = region_rect.getInfo()                 # dict geojson
+    rect_bounds = _rect_bounds_from_region_info(region_info)  # (xmin,ymin,xmax,ymax)
+
+    # Imágenes visualizadas (RGB)
+    img_start = _s2_year_mean_rgb(ee, region_rect, int(year_start))
+    img_end   = _s2_year_mean_rgb(ee, region_rect, int(year_end))
+
+    # Parámetros (usar dict completo como 'region')
+    params = {
+        'region': region_info,
+        'dimensions': f'{int(dim)}x{int(dim)}',
+        'format': 'png'
+    }
+
+    # URLs de png renderizados
+    try:
+        url_start = img_start.getThumbURL(params)
+        url_end   = img_end.getThumbURL(params)
+    except Exception:
+        # fallback: solo coordenadas
+        params_fb = dict(params, region=region_info.get('coordinates'))
+        url_start = img_start.getThumbURL(params_fb)
+        url_end   = img_end.getThumbURL(params_fb)
+
+    # Rutas temporales (crudo) y finales (con overlays/anotaciones)
+    raw_start = os.path.join(out_dir, f"sentinel_raw_{year_start}.png")
+    raw_end   = os.path.join(out_dir, f"sentinel_raw_{year_end}.png")
+    png_start = os.path.join(out_dir, f"sentinel_{year_start}.png")
+    png_end   = os.path.join(out_dir, f"sentinel_{year_end}.png")
+
+    # Descargar
+    for url, path in [(url_start, raw_start), (url_end, raw_end)]:
+        r = requests.get(url, timeout=180)
+        r.raise_for_status()
+        with open(path, 'wb') as f:
+            f.write(r.content)
+
+    # Re-render con anotaciones
+    _annotate_s2_png(raw_start, png_start, rect_bounds, parcel_gdf)
+    _annotate_s2_png(raw_end,   png_end,   rect_bounds, parcel_gdf)
+
+    # (opcional) borrar crudos
+    try:
+        os.remove(raw_start); os.remove(raw_end)
+    except Exception:
+        pass
+
+    return png_start.replace("\\","/"), png_end.replace("\\","/")
+
+
 def build_html_report(
     title_text, logo_path, red_hex,
     context_map_html, defo_png, df_yearly, out_html,
     period_text, summary_area_ha=None,
-    pred_name=None, objectid_val=None, lotcodigo_val=None
+    pred_name=None, objectid_val=None, lotcodigo_val=None,
+    sentinel_png_start: str | None = None,
+    sentinel_png_end:   str | None = None
 ):
     """
-    Constructor final de HTML con seis filas en 'Resumen':
-      Predio | OBJECT ID | Lot código | Área en hectáreas | Rango | Pérdida total
-    Etiquetas en negrita, valores normales. Los recursos se referencian con rutas relativas.
+    Crea el HTML final. Si se proporcionan imágenes Sentinel-2 (start/end),
+    agrega una tarjeta al final con ambas.
     """
-    # Paths
+    # Paths relativos
     ensure_dir(Path(out_html).parent)
     context_rel = _relpath_for_html(context_map_html, out_html).replace("\\", "/")
-    defo_rel    = _relpath_for_html(defo_png, out_html).replace("\\", "/")
-    logo_rel    = _relpath_for_html(logo_path, out_html).replace("\\", "/") if (logo_path and Path(logo_path).exists()) else None
+    defo_rel    = _relpath_for_html(defo_png,        out_html).replace("\\", "/")
+    logo_rel    = _relpath_for_html(logo_path,       out_html).replace("\\", "/") if (logo_path and Path(logo_path).exists()) else None
 
-    # Valores de resumen
+    # Valores de resumen 
     total_loss = 0.0
     if df_yearly is not None and len(df_yearly):
         total_loss = float(df_yearly["deforestation_ha"].sum())
@@ -552,18 +749,22 @@ def build_html_report(
     lot_txt  = (str(lotcodigo_val).strip() if lotcodigo_val is not None else "—")
     area_txt = f"{fmt_ha(summary_area_ha)}" if (summary_area_ha is not None) else "—"
 
-    # CSS (header + bold labels, normal values)
+    # Etiquetas para los títulos Sentinel 
+    per_str = str(period_text)
+    pnorm = per_str.replace("—", "-").replace("–", "-")
+    try:
+        p_start_label = pnorm.split("-")[0].strip()
+        p_end_label   = pnorm.split("-")[-1].strip()
+    except Exception:
+        p_start_label, p_end_label = per_str, per_str
+
+    # CSS
     css = """
     <style>
-      :root {
-        --card-bg: #fff;
-        --muted: #666;
-        --border: #e7e7e7;
-      }
-      * { box-sizing: border-box; }
-      body { margin:0; font-family: Arial, sans-serif; background:#fafafa; color:#222; }
+      :root { --card-bg:#fff; --muted:#666; --border:#e7e7e7; }
+      * { box-sizing:border-box; }
+      body { margin:0; font-family:Arial, sans-serif; background:#fafafa; color:#222; }
 
-      /* Header sizing & color (as requested) */
       header { background:#E4002D; padding:.75rem 1rem; }
       header.banner { background:#E4002D; width:100%; margin:0 auto; padding:1.5rem 0; }
 
@@ -582,12 +783,8 @@ def build_html_report(
       iframe { width:100%; height:420px; border:none; border-radius:10px; }
       .note { color:var(--muted); font-size:12px; margin-top:8px; }
 
-      /* Resumen key–value (labels bold, values normal) */
       .kv { margin-top:4px; }
-      .kv .row {
-        display:flex; justify-content:space-between; gap:12px;
-        padding:6px 2px; border-bottom:1px solid #eee;
-      }
+      .kv .row { display:flex; justify-content:space-between; gap:12px; padding:6px 2px; border-bottom:1px solid #eee; }
       .kv .row:last-child { border-bottom:none; }
       .kv .k { font-weight:700; color:#111; }
       .kv .v { font-weight:400; color:#111; }
@@ -607,7 +804,7 @@ def build_html_report(
         )
         table_card = f"""
         <div class="card">
-          <h2> Hectáreas perdidas por año</h2>
+          <h2>Hectáreas perdidas por año</h2>
           <table>
             <thead><tr><th>Año</th><th>Pérdida (ha)</th></tr></thead>
             <tbody>{rows_html}</tbody>
@@ -618,66 +815,116 @@ def build_html_report(
     else:
         table_card = """
         <div class="card">
-          <h2> Hectáreas perdidas por año</h2>
-          <p class="note"> No se detectó deforestación en el rango de años especificado.</p>
+          <h2>Hectáreas perdidas por año</h2>
+          <p class="note">No se detectó deforestación en el rango de años especificado.</p>
         </div>
         """
 
-    # HTML
-    html = f"""<!doctype html><html><head><meta charset="utf-8"><title>{title_text}</title>{css}</head>
-    <body>
-      <header class="banner">
-        <div class="brand">
-          {f'<img src="{logo_rel}" alt="Secretaría de Planeación, Bogotá" style="height:70px;">' if logo_rel else ''}
-          <div>
-            <div class="title">Reporte de alertas de deforestación – PSAH</div>
-            <div class="sub">Secretaría Distrital de Planeación – Bogotá</div>
-          </div>
-        </div>
-      </header>
+    # Sentinel- 2
+    sentinel_block = ""
+    if sentinel_png_start and sentinel_png_end:
+        s1 = _relpath_for_html(sentinel_png_start, out_html).replace("\\", "/")
+        s2 = _relpath_for_html(sentinel_png_end,   out_html).replace("\\", "/")
 
-      <div class="container">
-        <h1>{title_text}</h1>
-        <div class="range">Rango: {period_text}</div>
+        sentinel_css = """
+        <style>
+          .s2-img {
+            width: 100%;
+            height: 420px;       /* mismo alto para ambas */
+            object-fit: contain; /* se ve TODO el polígono, sin recortes */
+            background: #fff;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+          }
+        </style>
+        """
 
-        <div class="card">
-          <h2>Metodología</h2>
-          <p>
-            Este reporte presenta las alertas de deforestación entre el rango de años especificado del predio seleccionado,
-            el cual participa en el esquema de PSAH en Bogotá y 19 municipios aledaños. Incluye un mapa de contexto geográfico interactivo,
-            un mapa de deforestación y una tabla de hectáreas de pérdida por año.
-          </p>
-        </div>
-
-        <div class="grid-2">
-          <div class="card">
-            <h2> Mapa de contextualización geográfica del predio </h2>
-            <iframe src="{context_rel}"></iframe>
-            <p class="note">Fuente del mapa base: Esri World Imagery. </p>
-          </div>
-          <div class="card">
-            <h2> Resumen</h2>
-            <div class="kv">
-              <div class="row"><span class="k">Predio</span><span class="v">{pred_txt}</span></div>
-              <div class="row"><span class="k">OBJECT ID</span><span class="v">{obj_txt}</span></div>
-              <div class="row"><span class="k">Lot código</span><span class="v">{lot_txt}</span></div>
-              <div class="row"><span class="k">Área en hectáreas</span><span class="v">{area_txt}</span></div>
-              <div class="row"><span class="k">Rango</span><span class="v">{period_text}</span></div>
-              <div class="row"><span class="k">Pérdida total</span><span class="v">{fmt_ha(total_loss)} ha</span></div>
-            </div>
-          </div>
-        </div>
-
+        sentinel_block = f"""
+        {sentinel_css}
         <div class="grid-2" style="margin-top:16px;">
           <div class="card">
-            <h2> Mapa de deforestación</h2>
-            <img class="map-img" src="{defo_rel}" alt="Mapa de deforestación">
+            <h2>Imagen Sentinel-2 – {p_start_label}</h2>
+            <img class="s2-img" src="{s1}" alt="Sentinel-2 {p_start_label}">
+            <p class="note">Fuente: Sentinel-2 (media anual), resolución 10 m.</p>
           </div>
-          {table_card}
+          <div class="card">
+            <h2>Imagen Sentinel-2 – {p_end_label}</h2>
+            <img class="s2-img" src="{s2}" alt="Sentinel-2 {p_end_label}">
+            <p class="note">Fuente: Sentinel-2 (media anual), resolución 10 m.</p>
+          </div>
+        </div>
+        """
+
+    # HTML principal
+    html_top = f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>{title_text}</title>
+  {css}
+</head>
+<body>
+  <header class="banner">
+    <div class="brand">
+      {f'<img src="{logo_rel}" alt="Secretaría de Planeación, Bogotá" style="height:70px;">' if logo_rel else ''}
+      <div>
+        <div class="title">Reporte de alertas de deforestación – PSAH</div>
+        <div class="sub">Secretaría Distrital de Planeación – Bogotá</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <h1>{title_text}</h1>
+    <div class="range">Rango: {period_text}</div>
+
+    <div class="card">
+      <h2>Metodología</h2>
+      <p>
+        Este reporte presenta las alertas de deforestación entre el rango de años especificado del predio seleccionado,
+        el cual participa en el esquema de PSAH en Bogotá y 19 municipios aledaños. Incluye un mapa de contexto geográfico
+        interactivo, un mapa de deforestación y una tabla de hectáreas de pérdida por año.
+      </p>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h2>Mapa de contextualización geográfica del predio</h2>
+        <iframe src="{context_rel}"></iframe>
+        <p class="note">Fuente del mapa base: Esri World Imagery.</p>
+      </div>
+      <div class="card">
+        <h2>Resumen</h2>
+        <div class="kv">
+          <div class="row"><span class="k">Predio</span><span class="v">{pred_txt}</span></div>
+          <div class="row"><span class="k">OBJECT ID</span><span class="v">{obj_txt}</span></div>
+          <div class="row"><span class="k">Lot código</span><span class="v">{lot_txt}</span></div>
+          <div class="row"><span class="k">Área en hectáreas</span><span class="v">{area_txt}</span></div>
+          <div class="row"><span class="k">Rango</span><span class="v">{period_text}</span></div>
+          <div class="row"><span class="k">Pérdida total</span><span class="v">{fmt_ha(total_loss)} ha</span></div>
         </div>
       </div>
-    </body></html>"""
+    </div>
+
+    <div class="grid-2" style="margin-top:16px;">
+      <div class="card">
+        <h2>Mapa de deforestación</h2>
+        <img class="map-img" src="{defo_rel}" alt="Mapa de deforestación">
+      </div>
+      {table_card}
+    </div>
+"""
+
+    html_bottom = """
+  </div>
+</body>
+</html>
+"""
+
+    # Ensambla todo (incluye Sentinel)
+    full_html = html_top + sentinel_block + html_bottom
 
     with open(out_html, "w", encoding="utf-8") as f:
-        f.write(html)
+        f.write(full_html)
+
     return out_html

@@ -9,7 +9,7 @@ load_dotenv()
 
 from deforestation_PSAH_functions import (
     select_parcel, context_map, plot_deforestation_map,
-    def_anual, build_html_report, pick_column, ensure_dir
+    def_anual, build_html_report, pick_column, ensure_dir, download_sentinel_year_pngs
 )
 
 #  CENTRALIZED FOLDERS (PATHS)
@@ -29,12 +29,13 @@ OUTPUT_DIR      = BASE_DIR / r"output"
 HTML_OUTPUT     = OUTPUT_DIR / r"reportes_html"
 CONTEXT_OUTPUT  = OUTPUT_DIR / r"Mapas\Mapas_contexto"
 DEFMAP_OUTPUT   = OUTPUT_DIR / r"Mapas\Mapas_deforestación"
+SENTINEL_OUTPUT = OUTPUT_DIR / r"Sentinel"
 
-for p in (OUTPUT_DIR, HTML_OUTPUT, CONTEXT_OUTPUT, DEFMAP_OUTPUT):
+for p in (OUTPUT_DIR, HTML_OUTPUT, CONTEXT_OUTPUT, DEFMAP_OUTPUT, SENTINEL_OUTPUT):
     ensure_dir(p)
 
 # INPUTS
-YEAR_START       = 2000
+YEAR_START       = 2018
 YEAR_END         = 2024
 OBJECTID         = 138.0
 LOT_CODIGO       = "102114000029"
@@ -72,6 +73,15 @@ if __name__ == "__main__":
     # Tabla de deforestación anual
     df_loss = def_anual(parcel, str(RASTER_PATH), year_min=YEAR_START, year_max=YEAR_END)
 
+    # Descargar imágenes Sentinel-2
+    s2_png_start, s2_png_end = download_sentinel_year_pngs(
+    parcel_gdf=parcel,
+    year_start=YEAR_START,
+    year_end=YEAR_END,
+    out_dir=str(SENTINEL_OUTPUT),
+    dim=1024  # you can use 768 or 1536 if you want
+    )
+
     # HTML final
 
     title = f"{pred_name} (OBJECT ID: {OBJECTID} - Código de lote: {LOT_CODIGO})"
@@ -89,7 +99,9 @@ if __name__ == "__main__":
         summary_area_ha=area_val,
         pred_name=pred_name,
         objectid_val=OBJECTID,
-        lotcodigo_val=LOT_CODIGO
+        lotcodigo_val=LOT_CODIGO,
+        sentinel_png_start=s2_png_start,
+        sentinel_png_end=s2_png_end
     )
 
     print(f"\n✓ Done. Open:\n{out_html}\n")
