@@ -44,12 +44,19 @@ def build_report_json(
         except Exception:
             return None
 
+    # === Verificar si hay alertas de nivel muy alto ===
+    tiene_alertas_muy_alto = summary["gfw_integrated_alerts__confidence"].get("highest", 0) > 0
+    
+    # === Crear lista para mensaje cuando NO hay alertas (sintaxis positiva) ===
+    mensaje_sin_alertas = [] if tiene_alertas_muy_alto else [{"texto": "placeholder"}]
+    
     # === Base del reporte ===
     report_data = {
         "TRIMESTRE": trimestre,
         "ANIO": anio,
         "LOGO": os.path.relpath(ruta_logo, base_folder),
         "MAPA_ALERTAS": os.path.relpath(ruta_mapa_alertas, base_folder),
+        "MENSAJE_SIN_ALERTAS": mensaje_sin_alertas,
         # GFW
         "GFW_NOMINAL": summary["gfw_integrated_alerts__confidence"].get("nominal", 0),
         "GFW_ALTO": summary["gfw_integrated_alerts__confidence"].get("high", 0),

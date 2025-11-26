@@ -1,11 +1,11 @@
-from src.aux_utils import log
+from .aux_utils import log
 import ee
 import geopandas as gpd
 import folium
 import os
 import pandas as pd
 import json
-from src.config import PROJECT_ID
+from .config import PROJECT_ID
 
 def get_tile_from_image(image, vis_params=None):
     """
@@ -126,8 +126,16 @@ def plot_sentinel_interactive(
     centroid = aoi.geometry.unary_union.centroid
     lat, lon = centroid.y, centroid.x
 
-    # Crear mapa base centrado temporalmente
-    m = folium.Map(tiles="CartoDB positron")
+    # Crear mapa base
+    m = folium.Map(location=[lat, lon], zoom_start=10, tiles=None)
+
+    # Agregar tile base explícitamente
+    folium.TileLayer(
+        tiles="CartoDB positron",
+        name="Mapa base",
+        overlay=False,
+        control=True
+    ).add_to(m)
 
     # Ajustar límites al AOI automáticamente
     minx, miny, maxx, maxy = aoi.total_bounds
@@ -225,8 +233,16 @@ def plot_dynamic_world_interactive(
     centroid = aoi.geometry.unary_union.centroid
     lat, lon = centroid.y, centroid.x
 
-    # Crear mapa base centrado temporalmente
-    m = folium.Map(tiles="CartoDB positron")
+    # Crear mapa base
+    m = folium.Map(location=[lat, lon], zoom_start=10, tiles=None)
+
+    # Agregar tile base explícitamente
+    folium.TileLayer(
+        tiles="CartoDB positron",
+        name="Mapa base",
+        overlay=False,
+        control=True
+    ).add_to(m)
 
     # Ajustar límites al AOI automáticamente
     minx, miny, maxx, maxy = aoi.total_bounds

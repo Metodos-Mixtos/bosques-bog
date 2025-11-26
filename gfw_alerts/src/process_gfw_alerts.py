@@ -51,6 +51,12 @@ def cluster_alerts_by_section(alerts_gdf: gpd.GeoDataFrame, buffer_m=1000) -> gp
     y pertenecen a la misma sección rural (SECR_CCNCT).
     Devuelve los puntos originales con un cluster_id asignado.
     """
+    # Verificar si hay alertas para procesar
+    if alerts_gdf.empty:
+        warnings.warn("⚠️ No hay alertas para clusterizar. Retornando GeoDataFrame vacío con estructura.", UserWarning)
+        alerts_gdf['cluster_id'] = pd.Series(dtype='int64')
+        return alerts_gdf
+    
     utm_crs = alerts_gdf.estimate_utm_crs()
     alerts_proj = alerts_gdf.to_crs(utm_crs).copy()
 

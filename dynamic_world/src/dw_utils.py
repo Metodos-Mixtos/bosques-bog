@@ -3,8 +3,8 @@ import pandas as pd
 import ee
 import geemap
 from shapely.ops import unary_union
-from src.aux_utils import log
-from src.config import LOOKBACK_DAYS, PROJECT_ID
+from .aux_utils import log
+from .config import LOOKBACK_DAYS, PROJECT_ID
 
 def authenticate_gee():
     try:

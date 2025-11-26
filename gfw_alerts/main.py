@@ -2,6 +2,15 @@ import argparse
 from dotenv import load_dotenv
 import os
 from pathlib import Path
+import geopandas as gpd
+
+# === Cargar .env desde la raíz del proyecto ===
+# El archivo está en: bosques-bog/../dot_env_content.env
+# main.py está en: bosques-bog/gfw_alerts/main.py
+# Entonces necesitamos subir 2 niveles: gfw_alerts -> bosques-bog -> raíz
+env_path = Path(__file__).parent.parent.parent / "dot_env_content.env"
+load_dotenv(env_path)
+
 
 # === Importar funciones del pipeline ===
 from src.download_gfw_data import (
@@ -24,17 +33,34 @@ from src.create_final_json import build_report_json
 from src.maps import plot_alerts_interactive, plot_sentinel_cluster_interactive
 from reporte.render_report import render
 
-# === Cargar variables de entorno ===
-load_dotenv("dot_env_content.env")
+# === Variables de entorno (ya cargadas arriba) ===
+# Verificar que el archivo .env existe
+if not env_path.exists():
+    raise FileNotFoundError(f"❌ No se encontró el archivo de entorno: {env_path}")
 
-USERNAME = os.getenv("USERNAME")
-PASSWORD = os.getenv("PASSWORD")
+# Usar GFW_USERNAME en lugar de USERNAME para evitar conflicto con variable de Windows
+USERNAME = os.getenv("GFW_USERNAME")
+PASSWORD = os.getenv("GFW_PASSWORD")
 ALIAS = os.getenv("ALIAS")
 EMAIL = os.getenv("EMAIL")
 ORG = os.getenv("ORG")
 ONEDRIVE_PATH = os.getenv("ONEDRIVE_PATH")
 GOOGLE_CLOUD_PROJECT = os.getenv("GCP_PROJECT")
 INPUTS_PATH = os.getenv("INPUTS_PATH")
+
+# Verificar variables críticas
+if not INPUTS_PATH:
+    raise ValueError(f"❌ INPUTS_PATH no está definido en {env_path}")
+if not ONEDRIVE_PATH:
+    raise ValueError(f"❌ ONEDRIVE_PATH no está definido en {env_path}")
+if not GOOGLE_CLOUD_PROJECT:
+    raise ValueError(f"❌ GCP_PROJECT no está definido en {env_path}")
+
+# Debug: mostrar credenciales (ocultar password parcialmente)
+print(f"🔑 Credenciales cargadas:")
+print(f"   USERNAME: {USERNAME}")
+print(f"   PASSWORD: {'*' * (len(PASSWORD) - 3) if PASSWORD else 'None'}{PASSWORD[-3:] if PASSWORD and len(PASSWORD) >= 3 else ''}")
+print(f"   EMAIL: {EMAIL}")
 
 # === Rutas de insumos ===
 POLYGON_PATH = os.path.join(INPUTS_PATH, "area_estudio", "gfw", "area_estudio.geojson")
@@ -92,31 +118,41 @@ if __name__ == "__main__":
     print("🔍 Enriqueciendo alertas con información territorial...")
     alerts_gdf = process_alerts(GEOJSON_OUTPUT_PATH, VEREDAS_PATH, SECCIONES_PATH)
     alerts_with_clusters = cluster_alerts_by_section(alerts_gdf)
+    
+    # Guardar incluso si está vacío para mantener consistencia
     alerts_with_clusters.to_file(DF_ANALYSIS_PATH)
-    clusters_bboxes = get_cluster_bboxes(alerts_with_clusters)
+    
+    # Verificar si hay clusters antes de continuar
+    if alerts_with_clusters.empty:
+        print("⚠️ No se encontraron alertas de alta confianza en este trimestre.")
+        print("   Generando reporte con datos vacíos...")
+        sentinel_results = []
+        clusters_bboxes = gpd.GeoDataFrame()
+    else:
+        clusters_bboxes = get_cluster_bboxes(alerts_with_clusters)
+        
+        # === Crear mapas Sentinel interactivos ===
+        print("🛰️ Generando mapas Sentinel-2 interactivos...")
+        sentinel_results = []
+        for _, row in clusters_bboxes.iterrows():
+            cluster_id = int(row["cluster_id"])
+            output_path = os.path.join(SENTINEL_IMAGES_PATH, f"sentinel_cluster_{cluster_id}.html")
 
-    # === Crear mapas Sentinel interactivos ===
-    print("🛰️ Generando mapas Sentinel-2 interactivos...")
-    sentinel_results = []
-    for _, row in clusters_bboxes.iterrows():
-        cluster_id = int(row["cluster_id"])
-        output_path = os.path.join(SENTINEL_IMAGES_PATH, f"sentinel_cluster_{cluster_id}.html")
+            map_path = plot_sentinel_cluster_interactive(
+                cluster_geom=row.geometry,
+                cluster_id=cluster_id,
+                start_date=START_DATE,
+                end_date=END_DATE,
+                output_path=output_path, 
+                alerts_gdf=gdf_alertas,
+                project=GOOGLE_CLOUD_PROJECT
+            )
 
-        map_path = plot_sentinel_cluster_interactive(
-            cluster_geom=row.geometry,
-            cluster_id=cluster_id,
-            start_date=START_DATE,
-            end_date=END_DATE,
-            output_path=output_path, 
-            alerts_gdf=gdf_alertas,
-            project=GOOGLE_CLOUD_PROJECT
-        )
-
-        if map_path:
-            sentinel_results.append({
-                "cluster_id": cluster_id,
-                "map_html": map_path
-            })
+            if map_path:
+                sentinel_results.append({
+                    "cluster_id": cluster_id,
+                    "map_html": map_path
+                })
 
     # === Crear mapa general de alertas ===
     print("🗺️ Creando visualización general...")

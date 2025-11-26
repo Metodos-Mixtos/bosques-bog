@@ -91,6 +91,12 @@
 
       <h3>Alertas de nivel muy alto</h3>
       <div id="very-high-sections">
+      {{#MENSAJE_SIN_ALERTAS}}
+      <div class="card" style="text-align: center; padding: 2rem;">
+        <p style="font-size: 16pt; color: #2e7d32; font-weight: bold;">✓ No se identificaron alertas de nivel muy alto.</p>
+        <p style="color: #666; font-size: 12pt;">Durante el {{TRIMESTRE}} trimestre de {{ANIO}}, no se registraron alertas de deforestación de nivel muy alto en la zona de estudio.</p>
+      </div>
+      {{/MENSAJE_SIN_ALERTAS}}
       {{#SECCIONES_MUY_ALTO}} 
       <div class="card--resaltada">
         <h4 class="badge">Municipio: {{municipio}}</h4>
