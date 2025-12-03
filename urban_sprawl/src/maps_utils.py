@@ -4,7 +4,7 @@ import json
 import os
 import ee
 import pandas as pd
-from src.config import GOOGLE_CLOUD_PROJECT
+from .config import GOOGLE_CLOUD_PROJECT
 
 def sanitize_gdf(gdf):
     """Sanitizar GeoDataFrame para evitar problemas al exportar a GeoJSON."""

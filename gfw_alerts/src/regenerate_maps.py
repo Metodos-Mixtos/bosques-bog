@@ -227,12 +227,17 @@ def regenerate_for_trimestre(trimestre: str, anio: int, force: bool = False):
             for cluster_id in cluster_ids:
                 try:
                     cluster_alerts = highest_alerts[highest_alerts["cluster_id"] == cluster_id]
-                    cluster_geom = cluster_alerts.union_all().convex_hull
+                    # Crear bbox igual que en main.py: buffer 2000m + envelope
+                    # Primero convertir a UTM para buffer en metros
+                    utm_crs = cluster_alerts.estimate_utm_crs()
+                    cluster_alerts_utm = cluster_alerts.to_crs(utm_crs)
                     
-                    # Asegurar que está en EPSG:4326
-                    if cluster_alerts.crs != "EPSG:4326":
-                        cluster_alerts = cluster_alerts.to_crs("EPSG:4326")
-                        cluster_geom = cluster_alerts.union_all().convex_hull
+                    # Buffer de 2000m y luego envelope (bbox rectangular)
+                    cluster_geom_utm = cluster_alerts_utm.geometry.buffer(2000).unary_union.envelope
+                    
+                    # Convertir de vuelta a EPSG:4326
+                    cluster_gdf = gpd.GeoDataFrame(geometry=[cluster_geom_utm], crs=utm_crs)
+                    cluster_geom = cluster_gdf.to_crs("EPSG:4326").iloc[0].geometry
                     
                     output_path = os.path.join(SENTINEL_IMAGES_PATH, f"sentinel_cluster_{cluster_id}.html")
                     

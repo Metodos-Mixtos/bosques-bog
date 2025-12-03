@@ -202,9 +202,16 @@ def plot_sentinel_cluster_interactive(
     m = folium.Map(
         location=[centroid.y, centroid.x],
         zoom_start=12,
-        tiles="CartoDB positron",
-        attr="CartoDB Positron"
+        tiles=None  # No agregar tiles por defecto
     )
+
+    # === Agregar basemap explícitamente ===
+    folium.TileLayer(
+        tiles="CartoDB positron",
+        name="Mapa base",
+        overlay=False,
+        control=True
+    ).add_to(m)
 
     # === Capa Sentinel-2 ===
     folium.TileLayer(

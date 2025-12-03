@@ -4,8 +4,8 @@ import ee
 import pandas as pd
 from pathlib import Path
 
-from src.aux_utils import export_image, make_relative_path
-from reporte.render_report import render
+from .aux_utils import export_image, make_relative_path
+from ..reporte.render_report import render
 
 def get_dw_mosaic_1year(end_date, geometry):
     """Mosaico de Dynamic World (built) de los últimos 365 días hasta end_date."""

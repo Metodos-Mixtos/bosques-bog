@@ -93,7 +93,11 @@ def regenerate_for_month(anio: int, mes: int, force: bool = False):
         force: Si True, regenera sin verificar expiración
     """
     month_str = datetime(anio, mes, 1).strftime("%B").capitalize()
-    previous_month_str = datetime(anio, mes-1 if mes > 1 else 12, anio if mes > 1 else anio-1).strftime("%B").capitalize()
+    # Calcular mes anterior correctamente
+    if mes > 1:
+        previous_month_str = datetime(anio, mes-1, 1).strftime("%B").capitalize()
+    else:
+        previous_month_str = datetime(anio-1, 12, 1).strftime("%B").capitalize()
     
     print(f"\n{'='*60}")
     print(f"🗓️  Regenerando mapas para {month_str} {anio}")
