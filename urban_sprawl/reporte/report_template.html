@@ -5,12 +5,17 @@
   <title>{{TITULO}}</title>
   <style>
     body { margin:0; padding:0; background:white; color:#1a1a1a; font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.6; }
-    header {background: #E4002D; padding: 1rem;}
-    header img {height: 70px;}
+    .color-bar { height:8px; width:100%; background:#e3351f; }
+    .header-images { display:flex; justify-content:space-between; align-items:center; padding:1rem 2rem; background:#E4002D; }
+    .header-images img { height:70px; }
+    .title-section { text-align:center; margin:2rem 0; }
     .wrap {max-width: 1000px; margin: 0 auto; padding: 2rem;}
     h1 {font-size: 22pt; font-weight: bold;}
+    .subtitle { color:#555; font-size:12pt; margin-bottom:2rem; }
     h2 {color: #8F0000; margin-top: 2rem;}
     h3 {margin-top: 1rem;}
+    footer { background:#f5f5f5; padding:2rem 1rem; text-align:center; font-size:11pt; color:#666; margin-top:3rem; }
+    footer .logo-footer { max-height:80px; margin-bottom:1rem; }
     .card { background:#fafafa; border:1px solid #ddd; border-radius:6px; padding:1rem; margin-bottom:1rem; }
     .card--resaltada{background:#FFF6F6; border:1px solid #ddd; border-radius:6px; padding:1rem; margin-bottom:1rem;}
     table {width: 100%; border-collapse: collapse; margin-top: 1rem;}
@@ -21,11 +26,19 @@
   </style>
 </head>
 <body>
-  <header><img src="{{LOGO}}" alt="Logo entidad"></header>
-  <div class="wrap">
+  <div class="color-bar"></div>
+  
+  <header class="header-images">
+    <img src="{{LOGO_ASI}}" alt="Logo ASI">
+    <img src="{{LOGO_BOGOTA}}" alt="Logo Bogotá">
+  </header>
+  
+  <div class="title-section">
     <h1>Reporte mensual de expansión urbana en Bogotá</h1>
-    <div class="note">{{FECHA_REPORTE}}</div> 
-
+    <div class="subtitle">{{FECHA_REPORTE}}</div>
+  </div>
+  
+  <div class="wrap">
     <h2>Resumen</h2>
     A continuación, se muestran las cinco Unidades de Planeamiento Local (UPLs) con mayor aumento del área construida en áreas con restricciones para la construcción, el periodo seleccionado. 
     <table>
@@ -56,5 +69,12 @@
       </div>
 
   </div>
+  
+  <footer>
+    <p>Generado el {{FECHA_GENERACION}}</p>
+    <img src="{{LOGO_FOOTER}}" alt="Secretaría de Planeación" class="logo-footer">
+  </footer>
+  
+  <div class="color-bar"></div>
 </body>
 </html>
