@@ -1,6 +1,4 @@
-json
 dotenv
-os
 requests
 typing
 geopandas 
