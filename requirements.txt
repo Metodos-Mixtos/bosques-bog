@@ -21,3 +21,6 @@ xarray
 rioxarray
 sentinelsat
 dotenv
+scikit-learn
+windows-curses
+

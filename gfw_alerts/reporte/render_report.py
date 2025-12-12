@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-import json, re
+import json, re, os
 from pathlib import Path
+from datetime import datetime
 
 SECTION_PAT = re.compile(r"{{#(\w+)}}(.*?){{/\1}}", re.DOTALL)
 TOKEN_PAT   = re.compile(r"{{\s*([\w\.]+)\s*}}")
@@ -41,6 +42,15 @@ def render(template_path: Path, data_path: Path, out_path: Path):
 
     # Convierte el dict HEADER a HTML antes de renderizar
     data["HEADER"] = build_header(data.get("HEADER"))
+    
+    # Agrega fecha de generación
+    data["FECHA_GENERACION"] = datetime.now().strftime("%d de %B de %Y")
+    
+    # Agrega rutas de imágenes del header y footer
+    inputs_path = os.getenv("INPUTS_PATH", "")
+    data["LOGO_ASI"] = os.path.join(inputs_path, "area_estudio", "asi_4.png")
+    data["LOGO_BOGOTA"] = os.path.join(inputs_path, "area_estudio", "bogota_4.png")
+    data["LOGO_FOOTER"] = os.path.join(inputs_path, "area_estudio", "secre_5.png")
 
     # Renderiza tokens + secciones
     html = render_template(template, data)

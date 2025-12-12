@@ -25,7 +25,7 @@ from src.maps import plot_alerts_interactive, plot_sentinel_cluster_interactive
 from reporte.render_report import render
 
 # === Cargar variables de entorno ===
-load_dotenv()
+load_dotenv("../dot_env_content.env")
 
 USERNAME = os.getenv("GFW_USERNAME")
 PASSWORD = os.getenv("GFW_PASSWORD")

@@ -6,12 +6,15 @@
   <title>{{TITLE}}</title>
   <style>
     body { margin:0; padding:0; background:white; color:#1a1a1a; font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.6; }
-    header { background:#E4002D; padding:.75rem 1rem; }
-    header.banner {background: #E4002D;width: 100%;margin: 0 auto;padding: 1.5rem 0;}
-    header img { height:60px; }
+    .color-bar { height:8px; width:100%; background:#e3351f; }
+    .header-images { display:flex; justify-content:space-between; align-items:center; padding:1rem 2rem; background:#E4002D; }
+    .header-images img { height:70px; }
+    .title-section { text-align:center; margin:2rem 0; }
     .wrap { max-width:1000px; margin:0 auto; padding:2rem 1rem 5rem; }
     h1 { font-size:24pt; font-weight:bold; margin:1.5rem 0 .5rem;}
     .subtitle { color:#555; font-size:12pt; margin-bottom:2rem; }
+    footer { background:#f5f5f5; padding:2rem 1rem; text-align:center; font-size:11pt; color:#666; margin-top:3rem; }
+    footer .logo-footer { max-height:80px; margin-bottom:1rem; }
     h2 { font-size:20pt; margin:2rem 0 1rem; color:#8F0000; border-bottom:1px solid #ccc; padding-bottom:.3rem; }
     h3 { font-size:13pt; margin:1rem 0 .5rem; color:#0a0a0a; }
     h4 { font-size:13pt; margin:0rem 0 0rem; color:#C00000; }
@@ -32,13 +35,19 @@
   </style>
 </head>
 <body>
-  <header class="banner">
-  <img src="{{LOGO}}" alt="Secretaría de Planeación, Bogotá" style="height:70px;">
-</header>
-  <div class="wrap">
+  <div class="color-bar"></div>
+  
+  <header class="header-images">
+    <img src="{{LOGO_ASI}}" alt="Logo ASI">
+    <img src="{{LOGO_BOGOTA}}" alt="Logo Bogotá">
+  </header>
+  
+  <div class="title-section">
     <h1>Reporte trimestral de alertas de deforestación y cambios en el páramo</h1>
     <div class="subtitle">{{TRIMESTRE}} trimestre de {{ANIO}}</div>
-
+  </div>
+  
+  <div class="wrap">
     <section id="deforestation">
       <h2>Alertas de deforestación</h2>
       <div class="two-col">
@@ -123,5 +132,12 @@
       {{/SECCIONES_MUY_ALTO}}
 
   </div>
+  
+  <footer>
+    <p>Generado el {{FECHA_GENERACION}}</p>
+    <img src="{{LOGO_FOOTER}}" alt="Secretaría de Planeación" class="logo-footer">
+  </footer>
+  
+  <div class="color-bar"></div>
 </body>
 </html>

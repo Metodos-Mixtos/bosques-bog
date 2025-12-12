@@ -45,7 +45,7 @@ def authenticate_gfw(username: str, password: str) -> str:
     payload = {"username": username, "password": password}
 
     
-    response = requests.post(url, headers=headers, json=payload)
+    response = requests.post(url, headers=headers, data=payload)
     print(response.status_code)
     response.raise_for_status()
     return response.json()['data']['access_token']
