@@ -350,187 +350,281 @@ def plot_deforestation_map(
     year_start, year_end, output_folder="."
 ):
     """
-    Mapa PNG estático de bosque (verde) y pérdida (rojo) estrictamente dentro del polígono del predio.
-
-    Funciona con:
-      • Stack Hansen de 3 bandas: [treecover2000, loss, lossyear] (uint8)
-      • 1 banda lossyear (uint8)
+    Mapa PNG estático de bosque (verde) y pérdida (rojo) usando Google Earth Engine.
+    Usa el dataset Hansen Global Forest Change 2024 directamente desde GEE.
     """
+    import ee
+    from io import BytesIO
+    from PIL import Image as PILImage
+    
     # Crear carpeta de salida con manejo robusto
     output_folder_path = Path(output_folder)
     output_folder_path.mkdir(parents=True, exist_ok=True)
     
-    # Simplificar nombre: solo el año, ya que la carpeta tiene el ID del predio
+    # Extensión PNG para imagen estática
     output_path = output_folder_path / f"mapa_{year_start}_{year_end}.png"
     
-    # Diagnóstico: imprimir información del path
-    print(f"   📁 Carpeta de salida: {output_folder_path}")
-    print(f"   📁 ¿Existe?: {output_folder_path.exists()}")
-    print(f"   📄 Archivo a crear: {output_path.name}")
+    print(f"   Carpeta de salida: {output_folder_path}")
+    print(f"   Existe: {output_folder_path.exists()}")
+    print(f"   Archivo a crear: {output_path.name}")
     
     # Verificar que la carpeta existe antes de continuar
     if not output_folder_path.exists():
         raise RuntimeError(f"No se pudo crear la carpeta: {output_folder_path}")
-
-    with rasterio.open(raster_path) as src:
-        # CRS 
-        if gdf.crs is None:
-            raise ValueError("El GeoDataFrame no tiene CRS.")
-        parcel_r = gdf.to_crs(src.crs) if gdf.crs != src.crs else gdf.copy()
-        geoms = [mapping(geom) for geom in parcel_r.geometry]
-
-        # Recorta usando la máscara real (el exterior permanece enmascarado)
-        clipped, transform = rio_mask.mask(src, geoms, crop=True, filled=False)
-        band_count = src.count
-
-        # Máscara "inside": True donde los datos están dentro del polígono
-        inside = ~np.ma.getmaskarray(clipped[0])
-        rows, cols = inside.shape
-
-        # Códigos Hansen para el periodo solicitado
-        start_code = max(1, int(year_start - 2000))  
-        end_code   = int(year_end   - 2000)
-
-        # Condiciones para mostrar los pixeles dentro del polígono
-        if band_count >= 3:
-            tc2000  = clipped[0].filled(0).astype(np.uint8)
-            loss    = clipped[1].filled(0).astype(np.uint8)
-            lossyer = clipped[2].filled(0).astype(np.uint8)
-
-            valid_forest = (tc2000 > 0)
-
-            loss_bool = (
-                inside & valid_forest &
-                (loss == 1) &
-                (lossyer >= start_code) & (lossyer <= end_code)
+    
+    # Inicializar GEE
+    ee_module = _ee_init_once()
+    
+    # Convertir el polígono a ee.Geometry
+    gdf_wgs = gdf.to_crs(4326)
+    geom = _parcel_to_ee_geometry(gdf_wgs)
+    
+    print(f"   Polígono convertido a GEE geometry")
+    
+    # Cargar Hansen dataset
+    hansen = ee_module.Image('UMD/hansen/global_forest_change_2024_v1_12')
+    hansen_clipped = hansen.clip(geom)
+    
+    # Extraer SOLO las 3 bandas relevantes: treecover2000, loss, lossyear
+    tc2000 = hansen_clipped.select('treecover2000')
+    loss = hansen_clipped.select('loss')
+    lossyear = hansen_clipped.select('lossyear')
+    
+    # DIAGNÓSTICO: Verificar que las bandas tengan datos
+    print(f"   Obteniendo estadísticas de las bandas...")
+    try:
+        stats = tc2000.reduceRegion(
+            reducer=ee_module.Reducer.minMax(),
+            geometry=geom,
+            scale=30,
+            maxPixels=1e9
+        ).getInfo()
+        print(f"   treecover2000: min={stats.get('treecover2000_min')}, max={stats.get('treecover2000_max')}")
+        
+        loss_stats = loss.reduceRegion(
+            reducer=ee_module.Reducer.sum(),
+            geometry=geom,
+            scale=30,
+            maxPixels=1e9
+        ).getInfo()
+        print(f"   loss: píxeles con pérdida={loss_stats.get('loss')}")
+        
+        lossyear_stats = lossyear.reduceRegion(
+            reducer=ee_module.Reducer.minMax(),
+            geometry=geom,
+            scale=30,
+            maxPixels=1e9
+        ).getInfo()
+        print(f"   lossyear: min={lossyear_stats.get('lossyear_min')}, max={lossyear_stats.get('lossyear_max')}")
+    except Exception as e:
+        print(f"   Error obteniendo estadísticas: {e}")
+    
+    # Códigos de año
+    start_code = max(1, int(year_start - 2000))
+    end_code = int(year_end - 2000)
+    
+    print(f"   Códigos de año: start={start_code} (año {year_start}), end={end_code} (año {year_end})")
+    
+    # IMPORTANTE: Umbral de cobertura arbórea
+    TREE_COVER_THRESHOLD = 30
+    
+    # Máscaras simples y directas
+    # 1. Bosque = donde treecover2000 >= 30
+    # 2. Pérdida en período = bosque Y loss=1 Y lossyear en rango
+    
+    has_forest = tc2000.gte(TREE_COVER_THRESHOLD)
+    has_loss = loss.eq(1)
+    loss_in_range = lossyear.gte(start_code).And(lossyear.lte(end_code))
+    
+    # Pérdida en el período: bosque + pérdida + año en rango
+    loss_mask = has_forest.And(has_loss).And(loss_in_range)
+    
+    # Bosque actual: bosque que NO se perdió O que se perdió después del período
+    # Equivalente a: (treecover >= 30) AND (loss = 0 OR lossyear > end_code)
+    forest_mask = has_forest.And(has_loss.eq(0).Or(lossyear.gt(end_code)))
+    
+    print(f"   Umbral de cobertura arbórea: {TREE_COVER_THRESHOLD}%")
+    
+    # NUEVA ESTRATEGIA: Descargar las bandas crudas y procesarlas localmente
+    # Esto replica exactamente el comportamiento del código local con TIFF
+    
+    # Seleccionar las 3 bandas en el orden correcto
+    hansen_3bands = hansen_clipped.select(['treecover2000', 'loss', 'lossyear'])
+    
+    # Descargar como array numpy
+    print(f"   Descargando bandas desde GEE...")
+    url = hansen_3bands.getDownloadURL({
+        'scale': 30,
+        'region': geom,
+        'format': 'GEO_TIFF'
+    })
+    
+    response = requests.get(url, timeout=300)
+    response.raise_for_status()
+    
+    # Leer el GeoTIFF descargado con rasterio
+    from io import BytesIO
+    import rasterio
+    from rasterio.io import MemoryFile
+    from rasterio.features import geometry_mask
+    
+    with MemoryFile(response.content) as memfile:
+        with memfile.open() as dataset:
+            # Leer las 3 bandas
+            tc2000_array = dataset.read(1)  # treecover2000
+            loss_array = dataset.read(2)    # loss
+            lossyear_array = dataset.read(3)  # lossyear
+            transform = dataset.transform
+            
+            # Crear máscara del polígono (True dentro, False fuera)
+            geom_shapes = [mapping(geom_obj) for geom_obj in gdf_wgs.geometry]
+            polygon_mask = ~geometry_mask(
+                geom_shapes,
+                out_shape=tc2000_array.shape,
+                transform=transform,
+                invert=False
             )
-
-            preserved_bool = (
-                inside & valid_forest &
-                ((loss == 0) | (lossyer > end_code))
-            )
-
-        elif band_count == 1:
-            lossyer = clipped[0].filled(0).astype(np.uint8)
-
-            loss_bool = (
-                inside &
-                (lossyer >= start_code) & (lossyer <= end_code)
-            )
-            # "Preserved" :nunca perdida mediante end_code
-            preserved_bool = inside & (lossyer == 0)
-
-        else:
-            raise ValueError("El ráster debe tener 3 bandas (tc2000, loss, lossyear).")
-
-        # Extent para imshow
-        left, bottom, right, top = rasterio.transform.array_bounds(rows, cols, transform)
-        extent = [left, right, bottom, top]
-
-    # Construir RGBA without background 
-    rgba = np.zeros((rows, cols, 4), dtype=float)
-    green = (0.35, 0.60, 0.45)   # bosque
-    red   = (0.85, 0.16, 0.16)   # loss
-
-    if preserved_bool.any():
-        r, g, b = green
-        rgba[preserved_bool, 0] = r
-        rgba[preserved_bool, 1] = g
-        rgba[preserved_bool, 2] = b
-        rgba[preserved_bool, 3] = 0.45
-
-    if loss_bool.any():
-        r, g, b = red
-        rgba[loss_bool, 0] = r
-        rgba[loss_bool, 1] = g
-        rgba[loss_bool, 2] = b
-        rgba[loss_bool, 3] = 0.75
-
-    # Plot 
+            
+    print(f"   Bandas descargadas: {tc2000_array.shape}")
+    print(f"   Máscara del polígono aplicada")
+    
+    # PROCESAMIENTO LOCAL (exactamente como el código original)
+    # Máscaras
+    valid_forest_arr = (tc2000_array >= TREE_COVER_THRESHOLD) & polygon_mask
+    loss_in_period_arr = valid_forest_arr & (loss_array == 1) & (lossyear_array >= start_code) & (lossyear_array <= end_code)
+    forest_preserved_arr = valid_forest_arr & ((loss_array == 0) | (lossyear_array > end_code))
+    
+    # Crear imagen RGB (H, W, 3)
+    height, width = tc2000_array.shape
+    rgb_array = np.full((height, width, 3), 255, dtype=np.uint8)  # Blanco por defecto
+    
+    # Verde claro/pastel donde hay bosque preservado (ajustado para coincidir con referencia)
+    rgb_array[forest_preserved_arr, 0] = 150  # R (más claro)
+    rgb_array[forest_preserved_arr, 1] = 200  # G (más claro)
+    rgb_array[forest_preserved_arr, 2] = 170  # B (más claro)
+    
+    # Rojo donde hay pérdida
+    rgb_array[loss_in_period_arr, 0] = 217  # R
+    rgb_array[loss_in_period_arr, 1] = 39   # G
+    rgb_array[loss_in_period_arr, 2] = 39   # B
+    
+    print(f"   Píxeles de bosque: {forest_preserved_arr.sum()}")
+    print(f"   Píxeles de pérdida: {loss_in_period_arr.sum()}")
+    
+    # Convertir a PIL Image
+    gee_img = PILImage.fromarray(rgb_array)
+    
+    print(f"   Imagen procesada localmente desde datos GEE")
+    
+    # Obtener bounds para el mapa matplotlib
+    bounds = gdf_wgs.total_bounds
+    xmin, ymin, xmax, ymax = bounds
+    
+    # Agregar padding
+    dx = (xmax - xmin) * 0.10
+    dy = (ymax - ymin) * 0.10
+    
+    # Crear figura con matplotlib
     fig, ax = plt.subplots(figsize=(9, 8), constrained_layout=True)
     fig.patch.set_facecolor("white")
     ax.set_facecolor("white")
-
-    if preserved_bool.any() or loss_bool.any():
-        ax.imshow(rgba, extent=extent, interpolation="nearest", zorder=1)
-    else:
-        ax.text(0.5, 0.5, "Sin bosque en 2000 y/o sin pérdida en el periodo",
-                transform=ax.transAxes, ha="center", va="center",
-                fontsize=11, color="dimgray")
-
+    
+    # Mostrar imagen de GEE
+    extent = [xmin - dx, xmax + dx, ymin - dy, ymax + dy]
+    ax.imshow(gee_img, extent=extent, interpolation='nearest', zorder=1)  # Píxeles nítidos de 30m (resolución Hansen)
+    
     # Polígono del predio
-    parcel_r.boundary.plot(ax=ax, color="black", linewidth=1.1, zorder=2)
-    for _, row in parcel_r.iterrows():
+    gdf_wgs.boundary.plot(ax=ax, color="black", linewidth=1.5, zorder=2)
+    for _, row in gdf_wgs.iterrows():
         c = row.geometry.centroid
         lab = str(row.get(names_column, "")).strip()
         if lab:
-            ax.annotate(text=lab, xy=(c.x, c.y), ha="center", fontsize=6.5, color="black", zorder=3)
-
+            ax.annotate(text=lab, xy=(c.x, c.y), ha="center", fontsize=7, 
+                       color="black", weight='bold', zorder=3)
+    
     # Leyenda
     legend1 = mpatches.Patch(color="#5a9a73", label=f"Bosque en {year_end}")
     legend2 = mpatches.Patch(color="#d92727", label=f"Pérdida {year_start}–{year_end}")
-    ax.legend(handles=[legend1, legend2], loc="upper right", frameon=True)
-
-    ax.set_title(f"Pérdida de bosque {year_start}-{year_end} en {name_of_area}")
-    ax.set_xticks([]); ax.set_yticks([])
-
-    # Vista alrededor del predio
-    xmin, ymin, xmax, ymax = parcel_r.total_bounds
-    dx = (xmax - xmin) * 0.10
-    dy = (ymax - ymin) * 0.10
+    ax.legend(handles=[legend1, legend2], loc="upper right", frameon=True, fontsize=9)
+    
+    ax.set_title(f"Pérdida de bosque {year_start}-{year_end} en {name_of_area}", fontsize=11, weight='bold')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    
     ax.set_xlim(xmin - dx, xmax + dx)
     ax.set_ylim(ymin - dy, ymax + dy)
     ax.set_aspect("equal", adjustable="datalim")
-
-    # Flecha del norte, escala y demás
+    
+    # Flecha del norte, escala y atribución
     add_north_arrow(ax, pos=(0.06, 0.84), length=0.08, color="black")
-    gdf_wgs = gdf.to_crs(4326) if (gdf.crs and gdf.crs.to_epsg() != 4326) else gdf
     add_scalebar_lonlat(ax, gdf_wgs=gdf_wgs, loc="lower center", segments=4)
     add_attribution(ax, "Fuente: Hansen Global Forest Change 2024", fontsize=9, loc="lower left")
-
+    
     plt.savefig(str(output_path), bbox_inches="tight", dpi=300)
     plt.close()
+    
+    print(f"   Imagen PNG guardada desde GEE")
     return str(output_path)
 
 def def_anual(gdf, raster_path, year_min=2000, year_max=2024) -> pd.DataFrame:
     """
-    Devuelve un DataFrame con la deforestación anual (ha) para el predio.
-    Maneja el caso de 'sin pérdida' sin generar errores.
+    Calcula la deforestación anual desde Google Earth Engine usando Hansen dataset.
+    Retorna DataFrame con columnas ['year', 'deforestation_ha'].
     """
-    with rasterio.open(raster_path) as src:
-        raster_crs = src.crs
-        gdf_r = gdf.to_crs(raster_crs) if (gdf.crs and gdf.crs != raster_crs) else gdf
-        geoms = [mapping(geom) for geom in gdf_r.geometry]
-        clipped, transform = rio_mask.mask(src, geoms, crop=True, filled=True)
-        band_count = src.count
-
-        start_code = year_min - 2000
-        end_code   = year_max - 2000
-
-        if band_count == 1:
-            lossyear = clipped[0]
-            mask_lossyear = np.where((lossyear >= start_code) & (lossyear <= end_code), lossyear, 0)
-        else:
-            tc2000 = clipped[0]; loss = clipped[1]; lossyear = clipped[2]
-            valid = (tc2000 > 0) & (loss == 1) & (lossyear >= start_code) & (lossyear <= end_code)
-            mask_lossyear = np.where(valid, lossyear, 0)
-
-    # Cuenta píxeles por código de año de pérdida
-    vals, counts = np.unique(mask_lossyear, return_counts=True)
-
+    import ee
+    
+    # Inicializar GEE
+    ee_module = _ee_init_once()
+    
+    # Convertir el polígono a ee.Geometry
+    gdf_wgs = gdf.to_crs(4326)
+    geom = _parcel_to_ee_geometry(gdf_wgs)
+    
+    # Cargar Hansen dataset
+    hansen = ee_module.Image('UMD/hansen/global_forest_change_2024_v1_12')
+    
+    # Extraer bandas
+    treecover2000 = hansen.select('treecover2000')
+    loss = hansen.select('loss')
+    lossyear = hansen.select('lossyear')
+    
+    # IMPORTANTE: Usar el mismo umbral que en el mapa
+    TREE_COVER_THRESHOLD = 30
+    
+    # Máscara: bosque en 2000 que se perdió
+    forest_loss = treecover2000.gte(TREE_COVER_THRESHOLD).And(loss.eq(1))
+    
+    # Calcular área por año
     results = []
-    for v, c in zip(vals, counts):
-        if int(v) == 0:
-            continue  # 0 = no hay pérdida
-        year = 2000 + int(v)
-        area_ha = c * (30 * 30) / 10000.0  # 900 m² por píxel -> ha
-        results.append({"year": int(year), "deforestation_ha": float(area_ha)})
-
+    pixel_area = ee_module.Image.pixelArea()  # área en m²
+    
+    for year in range(year_min, year_max + 1):
+        year_code = year - 2000
+        
+        # Máscara para este año específico
+        loss_this_year = forest_loss.And(lossyear.eq(year_code))
+        
+        # Calcular área total en m²
+        area_image = loss_this_year.multiply(pixel_area)
+        
+        # Reducir a estadística
+        stats = area_image.reduceRegion(
+            reducer=ee_module.Reducer.sum(),
+            geometry=geom,
+            scale=30,  # resolución de Hansen
+            maxPixels=1e9
+        )
+        
+        area_m2 = stats.get('treecover2000').getInfo()
+        
+        if area_m2 and area_m2 > 0:
+            area_ha = area_m2 / 10000.0  # convertir a hectáreas
+            results.append({'year': year, 'deforestation_ha': area_ha})
+    
     if not results:
-        # Retorna un DataFrame vacío con el esquema esperado
         print("No hay pérdida de cobertura arbórea en los años especificados.")
-        return pd.DataFrame(columns=["year", "deforestation_ha"])
-
+        return pd.DataFrame(columns=['year', 'deforestation_ha'])
+    
     df = pd.DataFrame(results)
     df = df.sort_values("year").reset_index(drop=True)
     return df

@@ -3,7 +3,7 @@
 Este repositorio contiene herramientas y scripts para el análisis y monitoreo de los bosques en Bogotá, integrando diversas fuentes de datos satelitales y funcionalidades para el seguimiento de la cobertura terrestre y la deforestación.
 
 ## Estructura del Repositorio
-- `deforestation_reports/`: Contiene scripts que permiten elaborar reportes sobre la deforestación anual de los predios que se toman como insumo y se elabora ese análisis a partir de los datos Hansen Global Forest Change v1.12 (2000-2024). En estos reportes es posible: ver la ubicación de los predios dentro del área de estudio, visualizar la pérdida de cobertura arbórea en ese terreno en los años considerados e identificar la cantidad hectáreas de pérdida de cada uno de los años.   
+- `deforestation_PSA/`: Contiene scripts que permiten elaborar reportes sobre la deforestación anual de los predios que se toman como insumo y se elabora ese análisis a partir de los datos Hansen Global Forest Change v1.12 (2000-2024). En estos reportes es posible: ver la ubicación de los predios dentro del área de estudio, visualizar la pérdida de cobertura arbórea en ese terreno en los años considerados e identificar la cantidad hectáreas de pérdida de cada uno de los años.   
 
 Frecuencia: Anual.
 

@@ -5,8 +5,8 @@ import argparse
 
 from dotenv import load_dotenv
 
-# Cargar .env desde la raíz del proyecto (dos niveles arriba)
-env_path = Path(__file__).parent.parent.parent / "dot_env_content.env"
+# Cargar .env desde la raíz del proyecto (tres niveles arriba desde deforestation_PSA)
+env_path = Path(__file__).parent.parent.parent.parent / "dot_env_content.env"
 load_dotenv(env_path)
 
 from deforestation_PSAH_functions import (
