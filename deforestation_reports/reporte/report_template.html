@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <style>
+    body { margin:0; padding:0; background:white; color:#1a1a1a; font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; }
+    header.banner { background:#e3351f; width:100%; margin:0; padding:1.5rem 0; display:flex; justify-content:space-between; align-items:center; }
+    header.banner img { height:70px; margin:0 2rem; }
+    footer.banner { background:#e3351f; width:100%; margin:3rem 0 0 0; padding:1.5rem 0; text-align:center; }
+    footer.banner img { height:70px; }
+    .wrap { max-width:1000px; margin:0 auto; padding:2rem 1rem 5rem; }
+    h1 { font-size:24pt; font-weight:bold; margin:1.5rem 0 .5rem; text-align:center; }
+    .subtitle { color:#555; font-size:12pt; margin-bottom:2rem; text-align:center; }
+    h2 { font-size:20pt; margin:2rem 0 1rem; color:#8F0000; border-bottom:1px solid #ccc; padding-bottom:.3rem; }
+    h3 { font-size:13pt; margin:1rem 0 .5rem; color:#0a0a0a; }
+    h4 { font-size:13pt; margin:0rem 0 0rem; color:#C00000; }
+    .card { background:#fafafa; border:1px solid #ddd; border-radius:6px; padding:1rem; margin-bottom:1rem; }
+    .card--resaltada{background:#FFF6F6; border:1px solid #ddd; border-radius:6px; padding:1rem; margin-bottom:1rem;}
+    figure { margin:1.5rem 0; text-align:center; }
+    figcaption { font-size:11pt; color:#555; margin-top:.5rem; text-align:left; }
+    .badge { display:inline-block; padding:.2rem .6rem; background:#eee; border-radius:4px; font-size:11pt; color:#333; margin-bottom:.5rem; }
+    ul { margin:.5rem 0 .8rem 1.2rem; }
+    .note { background:#f9f9f9; border:1px dashed #bbb; padding:.6rem; border-radius:6px; font-size:12px; color:#333; }
+    .foot { margin-top:2rem; font-size:11pt; color:#666; }
+    .two-col { display:grid; grid-template-columns:1.2fr .8fr; gap:1rem; }
+    .kpi { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:.75rem; }
+    .kpi .item { background:#fff; border:1px solid #ddd; border-radius:6px; padding:.75rem; }
+    .item b { display:block; font-size:12pt; margin-bottom:.2rem; }
+    .item span { display:block; font-size:11pt; color:#555; }
+    table { width:100%; border-collapse:collapse; margin-top:1rem; }
+    th, td { border:1px solid #ddd; padding:8px; text-align:right; }
+    th:first-child, td:first-child { text-align:left; }
+    th { background:#f5f5f5; }
+    .map-img { width:100%; border-radius:10px; border:1px solid #ddd; }
+    .sentinel-img { width:100%; height:400px; object-fit:contain; background:#fff; border-radius:10px; border:1px solid #ddd; }
+  </style>
+</head>
+<body>
+  <header class="banner">
+    <img src="{{HEADER_IMG1}}" alt="Aquí sí pasa Bogotá">
+    <img src="{{HEADER_IMG2}}" alt="Bogotá">
+  </header>
+  
+  <div class="wrap">
+    <h1>{{TITLE}}</h1>
+    <div class="subtitle">Período: {{PERIOD}}</div>
+
+    <section id="deforestation">
+      <h2>Alertas de deforestación</h2>
+      
+      <div class="two-col">
+        <div class="card">
+          <h3>Metodología</h3>
+          <p>Este reporte presenta las alertas de deforestación entre el rango de años especificado del predio seleccionado, el cual participa en el esquema de PSAH en Bogotá y 19 municipios aledaños.</p>
+          <p>Incluye un mapa de contexto geográfico interactivo, un mapa de deforestación y una tabla de hectáreas de pérdida por año.</p>
+          <p>Los datos de deforestación provienen del conjunto de datos Hansen Global Forest Change, que detecta la pérdida de cobertura arbórea con una resolución de 30 metros.</p>
+          <div class="note">Para más información, consulte <a href="https://earthenginepartners.appspot.com/science-2013-global-forest" target="_blank" rel="noopener noreferrer">Hansen et al. 2013.</a></div>
+        </div>
+        
+        <div class="card">
+          <h3>Resumen del predio</h3>
+          <div class="kpi">
+            <div class="item">
+              <b>Predio</b>
+              <span>{{PRED_NAME}}</span>
+            </div>
+            <div class="item">
+              <b>OBJECT ID</b>
+              <span>{{OBJECTID}}</span>
+            </div>
+            <div class="item">
+              <b>Código de lote</b>
+              <span>{{LOT_CODIGO}}</span>
+            </div>
+            <div class="item">
+              <b>Área total</b>
+              <span>{{AREA_HA}} ha</span>
+            </div>
+            <div class="item">
+              <b>Período analizado</b>
+              <span>{{PERIOD}}</span>
+            </div>
+            <div class="item">
+              <b>Pérdida total</b>
+              <span>{{TOTAL_LOSS}} ha</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <figure class="card--resaltada">
+        <h3>Mapa de contextualización geográfica del predio</h3>
+        <iframe src="{{CONTEXT_MAP}}" width="100%" height="500px" style="border:1px solid #ccc; border-radius:4px;"></iframe>
+        <figcaption>Fuente del mapa base: Esri World Imagery.</figcaption>
+      </figure>
+
+      <div class="two-col" style="margin-top:1rem;">
+        <figure class="card--resaltada">
+          <h3>Mapa de deforestación</h3>
+          <img class="map-img" src="{{DEFO_MAP}}" alt="Mapa de deforestación">
+          <figcaption>Pérdida de cobertura arbórea detectada en el período {{PERIOD}}.</figcaption>
+        </figure>
+
+        <div class="card">
+          <h3>Hectáreas perdidas por año</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Año</th>
+                <th>Pérdida (ha)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#YEARLY_DATA}}
+              <tr>
+                <td>{{year}}</td>
+                <td>{{loss_ha}}</td>
+              </tr>
+              {{/YEARLY_DATA}}
+            </tbody>
+          </table>
+          <p class="note">Área de píxel ~ 30 m × 30 m (Hansen GFC).</p>
+        </div>
+      </div>
+
+      <h2>Imágenes satelitales Sentinel-2</h2>
+      <div class="two-col" style="margin-top:1rem;">
+        <figure class="card--resaltada">
+          <h3>Imagen Sentinel-2 – {{YEAR_START}}</h3>
+          <img class="sentinel-img" src="{{SENTINEL_START}}" alt="Sentinel-2 {{YEAR_START}}">
+          <figcaption>Fuente: Sentinel-2 (media anual), resolución 10 m.</figcaption>
+        </figure>
+
+        <figure class="card--resaltada">
+          <h3>Imagen Sentinel-2 – {{YEAR_END}}</h3>
+          <img class="sentinel-img" src="{{SENTINEL_END}}" alt="Sentinel-2 {{YEAR_END}}">
+          <figcaption>Fuente: Sentinel-2 (media anual), resolución 10 m.</figcaption>
+        </figure>
+      </div>
+
+    </section>
+  </div>
+  
+  <footer class="banner">
+    <img src="{{FOOTER_IMG}}" alt="Secretaría de Planeación">
+  </footer>
+</body>
+</html>

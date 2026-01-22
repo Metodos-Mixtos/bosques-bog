@@ -356,11 +356,21 @@ def plot_deforestation_map(
       • Stack Hansen de 3 bandas: [treecover2000, loss, lossyear] (uint8)
       • 1 banda lossyear (uint8)
     """
-    ensure_dir(output_folder)
-    safe_name = str(name_of_area).replace(" ", "_").replace("/", "_")
-    output_path = os.path.join(
-        output_folder, f"deforestacion_{safe_name}_{year_start}_a_{year_end}.png"
-    )
+    # Crear carpeta de salida con manejo robusto
+    output_folder_path = Path(output_folder)
+    output_folder_path.mkdir(parents=True, exist_ok=True)
+    
+    # Simplificar nombre: solo el año, ya que la carpeta tiene el ID del predio
+    output_path = output_folder_path / f"mapa_{year_start}_{year_end}.png"
+    
+    # Diagnóstico: imprimir información del path
+    print(f"   📁 Carpeta de salida: {output_folder_path}")
+    print(f"   📁 ¿Existe?: {output_folder_path.exists()}")
+    print(f"   📄 Archivo a crear: {output_path.name}")
+    
+    # Verificar que la carpeta existe antes de continuar
+    if not output_folder_path.exists():
+        raise RuntimeError(f"No se pudo crear la carpeta: {output_folder_path}")
 
     with rasterio.open(raster_path) as src:
         # CRS 
@@ -478,9 +488,9 @@ def plot_deforestation_map(
     add_scalebar_lonlat(ax, gdf_wgs=gdf_wgs, loc="lower center", segments=4)
     add_attribution(ax, "Fuente: Hansen Global Forest Change 2024", fontsize=9, loc="lower left")
 
-    plt.savefig(output_path, bbox_inches="tight", dpi=300)
+    plt.savefig(str(output_path), bbox_inches="tight", dpi=300)
     plt.close()
-    return output_path
+    return str(output_path)
 
 def def_anual(gdf, raster_path, year_min=2000, year_max=2024) -> pd.DataFrame:
     """
@@ -530,11 +540,17 @@ def def_anual(gdf, raster_path, year_min=2000, year_max=2024) -> pd.DataFrame:
 def _ee_init_once():
     """Inicialización GEE (no aparece ningún mensaje si ya está autenticado)."""
     import ee
+    import os
+    
+    project = os.getenv("GCP_PROJECT")
+    if not project:
+        raise RuntimeError("GCP_PROJECT no está definido en .env")
+    
     try:
-        ee.Initialize()
+        ee.Initialize(project=project)
     except Exception:
         ee.Authenticate()  # opens browser 1st time
-        ee.Initialize()
+        ee.Initialize(project=project)
     return ee
 
 def _parcel_to_ee_geometry(parcel_gdf):
@@ -727,7 +743,10 @@ def build_html_report(
     period_text, summary_area_ha=None,
     pred_name=None, objectid_val=None, lotcodigo_val=None,
     sentinel_png_start: str | None = None,
-    sentinel_png_end:   str | None = None
+    sentinel_png_end:   str | None = None,
+    header_img1_path: str | None = None,
+    header_img2_path: str | None = None,
+    footer_img_path: str | None = None
 ):
     """
     Crea el HTML final. Si se proporcionan imágenes Sentinel-2 (start/end),
@@ -738,6 +757,11 @@ def build_html_report(
     context_rel = _relpath_for_html(context_map_html, out_html).replace("\\", "/")
     defo_rel    = _relpath_for_html(defo_png,        out_html).replace("\\", "/")
     logo_rel    = _relpath_for_html(logo_path,       out_html).replace("\\", "/") if (logo_path and Path(logo_path).exists()) else None
+    
+    # Paths relativos para las nuevas imágenes del header y footer
+    header_img1_rel = _relpath_for_html(header_img1_path, out_html).replace("\\", "/") if (header_img1_path and Path(header_img1_path).exists()) else None
+    header_img2_rel = _relpath_for_html(header_img2_path, out_html).replace("\\", "/") if (header_img2_path and Path(header_img2_path).exists()) else None
+    footer_img_rel = _relpath_for_html(footer_img_path, out_html).replace("\\", "/") if (footer_img_path and Path(footer_img_path).exists()) else None
 
     # Valores de resumen 
     total_loss = 0.0
@@ -765,12 +789,11 @@ def build_html_report(
       * { box-sizing:border-box; }
       body { margin:0; font-family:Arial, sans-serif; background:#fafafa; color:#222; }
 
-      header { background:#E4002D; padding:.75rem 1rem; }
-      header.banner { background:#E4002D; width:100%; margin:0 auto; padding:1.5rem 0; }
-
-      .brand { max-width:1150px; margin:0 auto; display:flex; align-items:center; gap:16px; padding:0 16px; }
-      .brand .title { color:#fff; font-size:18px; font-weight:700; line-height:1.1; }
-      .brand .sub { color:#fff; font-size:12px; opacity:.92; margin-top:2px; }
+      header.banner { background:#e3351f; width:100%; margin:0; padding:1.5rem 0; display:flex; justify-content:space-between; align-items:center; }
+      header.banner img { height:70px; margin:0 2rem; }
+      
+      footer.banner { background:#e3351f; width:100%; margin:3rem 0 0 0; padding:1.5rem 0; text-align:center; }
+      footer.banner img { height:70px; }
 
       .container { padding:18px; max-width:1150px; margin:0 auto; }
       h1 { margin:12px 0 4px; font-size:26px; }
