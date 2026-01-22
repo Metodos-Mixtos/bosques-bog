@@ -17,3 +17,4 @@ matplotlib-scalebar
 folium
 python-dotenv
 git+https://github.com/Metodos-Mixtos/metodos_mixtos.git@main
+gcsfs

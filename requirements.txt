@@ -21,3 +21,4 @@ xarray
 rioxarray
 sentinelsat
 dotenv
+gcsfs
