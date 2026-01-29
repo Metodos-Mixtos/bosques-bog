@@ -20,3 +20,5 @@ earthengine-api
 # Utilities
 python-dotenv
 requests
+git+https://github.com/Metodos-Mixtos/metodos_mixtos.git@main
+gcsfs

@@ -21,3 +21,5 @@ xarray
 rioxarray
 sentinelsat
 dotenv
+gcsfs
+google-cloud-storage

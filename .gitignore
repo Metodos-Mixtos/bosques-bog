@@ -15,3 +15,10 @@ deforestation_reports/output/*
 *.docx
 #Empezar a usar templates
 #https://github.com/github/gitignore/blob/main/Python.gitignore
+
+# Local artefacts from GCS mounts / caches
+gs/
+gcs/
+.gs/
+**/gs/
+**/gcs/
