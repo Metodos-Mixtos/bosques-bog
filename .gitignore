@@ -5,9 +5,9 @@ temp_data/
 __pycache__/
 .venv/
 
-deforestation_reports/data/*
-deforestation_reports/output/*
-!deforestation_reports/output/.gitkeep
+psa_reports/data/*
+psa_reports/output/*
+!psa_reports/output/.gitkeep
 *.tif
 *.tif.aux.xml
 *.kml
